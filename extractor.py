@@ -29,6 +29,10 @@ def norm(t):
     return " ".join(re.sub(r"\[page \d+\]", "", t).split())
 
 
+def quote_in_source(quote, source):
+    return bool(quote.strip()) and norm(quote) in norm(source)
+
+
 def parse_list(text):
     text = text.strip()
     if text.startswith("```"):
@@ -67,20 +71,25 @@ def main():
     if items is None:
         sys.exit(f"error: could not parse model output for {args.source_file}: {err}")
 
-    norm_source = norm(source)
+    rows, skipped = [], 0
     for it in items:
-        q = it.get("quote", "")
-        it["quote_found"] = bool(q.strip()) and norm(q) in norm_source
+        if not isinstance(it, dict):
+            skipped += 1  # recorded, not scored
+            continue
+        it["quote_found"] = quote_in_source(it.get("quote", ""), source)
+        rows.append(it)
 
     print(f"{'id':<6}{'type':<10}{'found':<8}claim")
-    for it in items:
+    for it in rows:
         print(f"{it.get('id', ''):<6}{it.get('type', ''):<10}{str(it['quote_found']):<8}{it.get('claim', '')}")
-    found = sum(1 for it in items if it["quote_found"])
-    print(f"found {found}/{len(items)}, missing {len(items) - found}/{len(items)}")
+    found = sum(1 for it in rows if it["quote_found"])
+    print(f"found {found}/{len(rows)}, missing {len(rows) - found}/{len(rows)}")
+    if skipped:
+        print(f"skipped {skipped} non-dict items")
 
     out = Path("workspace") / f"{args.source_id}_extract.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(items, indent=2), encoding="utf-8")
+    out.write_text(json.dumps(rows, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

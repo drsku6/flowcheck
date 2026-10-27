@@ -18,6 +18,9 @@ MAX_URL_BYTES = 5 * 1024 * 1024
 MAX_FILE_BYTES = 30 * 1024 * 1024
 MAX_PAGES = 300
 SKIP_TAGS = {"script", "style", "nav", "header", "footer"}
+BLOCK_TAGS = {"p", "div", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6",
+              "tr", "td", "th", "section", "article", "ul", "ol", "table",
+              "blockquote"}
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 
@@ -40,25 +43,40 @@ class BodyText(HTMLParser):
         super().__init__()
         self.skip_depth = 0
         self.in_body = False
-        self.chunks = []
+        self.chunks = []  # finished lines
+        self.line = []  # inline fragments of the current line
+
+    def _flush(self):
+        text = re.sub(r"\s+", " ", "".join(self.line)).strip()
+        if text:
+            self.chunks.append(text)
+        self.line = []
+
+    def lines(self):  # flush any trailing unclosed line
+        self._flush()
+        return self.chunks
 
     def handle_starttag(self, tag, attrs):
         if tag == "body":
             self.in_body = True
         if tag in SKIP_TAGS:
             self.skip_depth += 1
+        elif tag in BLOCK_TAGS and self.in_body and self.skip_depth == 0:
+            self._flush()
 
     def handle_endtag(self, tag):
         if tag == "body":
+            self._flush()
             self.in_body = False
         if tag in SKIP_TAGS:
             self.skip_depth = max(0, self.skip_depth - 1)
+        elif tag in BLOCK_TAGS and self.in_body and self.skip_depth == 0:
+            self._flush()
 
     def handle_data(self, data):
-        if self.in_body and self.skip_depth == 0:
-            t = data.strip()
-            if t:
-                self.chunks.append(t)
+        # Raw fragments: spacing between inline tags survives the join.
+        if self.in_body and self.skip_depth == 0 and data.strip():
+            self.line.append(data)
 
 
 def title_of(html):
@@ -69,7 +87,7 @@ def title_of(html):
 def html_to_text(html):
     p = BodyText()
     p.feed(html)
-    text = "\n".join(p.chunks)
+    text = "\n".join(p.lines())
     if len(text.strip()) < 200:  # likely JS-rendered, no usable text
         fail("almost no text extracted; page may need JavaScript rendering")
     return text
@@ -94,15 +112,18 @@ def pdf_to_text(path):
                 tables = page.extract_tables() or []
             except Exception:
                 tables = []
-            for row in tables:
-                # Cells are str/None, but nested content can surface as a list.
-                cells = [" ".join(flat(c).split()) for c in row]
-                block += "\n" + " | ".join(cells)
+            for table in tables:
+                for row in table:
+                    # Cells are str/None, but nested content can surface as a list.
+                    cells = [" ".join(flat(c).split()) for c in row]
+                    if any(cells):
+                        block += "\n" + " | ".join(cells)
             parts.append(block)
         title = (pdf.metadata.get("Title") if pdf.metadata else None) or path.name
         npages = len(pdf.pages)
     text = "\n\n".join(parts).strip()
-    if not text.replace("[page", "").replace("[unreadable page]", "").strip():
+    body = re.sub(r"\[page \d+\]", "", text).replace("[unreadable page]", "")
+    if not body.strip():
         fail(f"no text in PDF (possibly scanned): {path}")
     return text, title, npages
 
@@ -122,9 +143,17 @@ def docx_to_text(path):
     # Document order covers table cells too: each cell holds its own paragraphs.
     lines = []
     for p in root.iter(f"{W}p"):
-        line = "".join(t.text for t in p.iter(f"{W}t") if t.text).strip()
-        if line:
-            lines.append(line)
+        frags = []
+        for el in p.iter():  # descendant order keeps tabs/breaks in place
+            if el.tag == f"{W}t" and el.text:
+                frags.append(el.text)
+            elif el.tag == f"{W}tab":
+                frags.append(" ")
+            elif el.tag == f"{W}br":
+                frags.append("\n")
+        for piece in "".join(frags).split("\n"):
+            if piece.strip():
+                lines.append(piece.strip())
     if not lines:
         fail(f"no text in .docx: {path}")
     return "\n".join(lines), path.name, None
@@ -176,8 +205,8 @@ def epub_to_text(path):
             continue
         p = BodyText()
         p.feed(raw)
-        if p.chunks:
-            texts.append("\n".join(p.chunks))
+        if p.lines():
+            texts.append("\n".join(p.lines()))
     text = "\n\n".join(texts).strip()
     if not text:
         fail(f"no readable chapters in EPUB: {path}")
@@ -200,21 +229,27 @@ def pub_to_pdf(path):
     return outs[0], tmp
 
 
+UA = "flowcheck/0.1 (hackathon research tool)"
+
+
 def fetch_url(url):
     if not url.startswith(("http://", "https://")):
         fail(f"only http/https URLs allowed: {url}")
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(url, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:
             raw = r.read(MAX_URL_BYTES + 1)
+            ctype = r.headers.get_content_type()
     except Exception as e:
         fail(f"fetch failed for {url}: {e}")
     if len(raw) > MAX_URL_BYTES:
         fail(f"response over 5 MB cap: {url}")
-    return raw.decode("utf-8", errors="replace")
+    return raw, ctype
 
 
 def normalize(text):
-    text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)  # line-break hyphenation only
+    # Join line-end hyphens only between letters, next line starting lowercase.
+    text = re.sub(r"([A-Za-z])-\n([a-z])", r"\1\2", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
@@ -225,34 +260,52 @@ def main():
     args = ap.parse_args()
 
     src = args.file_or_url
-    url_or_null, pages, tmpdir = None, 1, None
-    if src.startswith(("http://", "https://", "www.")):
-        url = src if "://" in src else "https://" + src
-        html = fetch_url(url)
-        text, title, url_or_null = html_to_text(html), title_of(html), url
-    else:
-        path = Path(src)
-        if not path.exists():
-            fail(f"file not found: {src}")
-        if path.stat().st_size > MAX_FILE_BYTES:
-            fail(f"file over 30 MB cap: {src}")
-        sfx = path.suffix.lower()
-        if sfx == ".pdf":
-            text, title, pages = pdf_to_text(path)
-        elif sfx in (".html", ".htm"):
-            raw = path.read_text(encoding="utf-8", errors="replace")
-            text, title = html_to_text(raw), title_of(raw)
-        elif sfx == ".docx":
-            text, title, pages = docx_to_text(path)
-        elif sfx == ".epub":
-            text, title, pages = epub_to_text(path)
-        elif sfx == ".pub":
-            pdf_path, tmpdir = pub_to_pdf(path)
-            text, title, pages = pdf_to_text(pdf_path)
+    url_or_null, pages, tmpdir, oldid = None, None, None, None
+    try:
+        if src.startswith(("http://", "https://", "www.")):
+            url = src if "://" in src else "https://" + src
+            raw, ctype = fetch_url(url)
+            if ctype == "application/pdf" or url.lower().endswith(".pdf"):
+                tmp = Path(tempfile.mkdtemp(prefix="ingest_dl_"))
+                name = Path(url.split("?")[0]).name or "download.pdf"
+                (tmp / name).write_bytes(raw)
+                tmpdir = tmp
+                text, title, pages = pdf_to_text(tmp / name)
+                url_or_null = url
+            else:
+                html = raw.decode("utf-8", errors="replace")
+                text, title, url_or_null = html_to_text(html), title_of(html), url
+                pages = 1  # one fetched page; local txt/html keep pages=None
+                rev = re.search(r'"wg(?:Cur)?RevisionId":(\d+)', html)
+                if rev:
+                    oldid = rev.group(1)
+                    if "wikipedia.org" in url:
+                        url_or_null = f"https://en.wikipedia.org/w/index.php?oldid={oldid}"
         else:
-            text, title = path.read_text(encoding="utf-8", errors="replace"), path.name
-    if tmpdir:
-        shutil.rmtree(tmpdir, ignore_errors=True)
+            path = Path(src)
+            if not path.exists():
+                fail(f"file not found: {src}")
+            if path.stat().st_size > MAX_FILE_BYTES:
+                fail(f"file over 30 MB cap: {src}")
+            sfx = path.suffix.lower()
+            if sfx == ".pdf":
+                text, title, pages = pdf_to_text(path)
+            elif sfx in (".html", ".htm"):
+                raw = path.read_text(encoding="utf-8", errors="replace")
+                text, title = html_to_text(raw), title_of(raw)
+            elif sfx == ".docx":
+                text, title, pages = docx_to_text(path)
+            elif sfx == ".epub":
+                text, title, pages = epub_to_text(path)
+            elif sfx == ".pub":
+                pdf_path, tmpdir = pub_to_pdf(path)
+                text, title, pages = pdf_to_text(pdf_path)
+            else:
+                text, title = path.read_text(encoding="utf-8", errors="replace"), path.name
+    finally:
+        # No leaked temp dirs even when a later step fails.
+        if tmpdir:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     text = normalize(text)
     out = Path("workspace")
@@ -260,10 +313,10 @@ def main():
     (out / f"{args.source_id}_source.md").write_text(text + "\n", encoding="utf-8")
     prov = {"source": src, "url_or_null": url_or_null, "title": title,
             "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "chars": len(text), "pages": pages}
+            "chars": len(text), "pages": pages, "oldid": oldid}
     (out / f"{args.source_id}_source.json").write_text(json.dumps(prov, indent=2))
 
-    print(f"pages: {pages if pages else 'n/a (reflowable)'}, chars: {len(text)}")
+    print(f"pages: {pages if pages else 'n/a'}, chars: {len(text)}")
     print("Check the source's license before using it in a demo.")
 
 
