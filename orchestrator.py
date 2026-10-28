@@ -69,7 +69,7 @@ def cleanup_splits(stem, sid, keep):
             print(f"{path}: removed")
 
 
-USAGE = """usage: orchestrator.py input/<name> [--verify]
+USAGE = """usage: orchestrator.py <file> [--verify]
        orchestrator.py --all [--verify]
        orchestrator.py --text "..." --id <name> [--verify]
        orchestrator.py --url <link> --id <name> [--verify]"""

@@ -45,10 +45,10 @@ flowchart LR
     subgraph UI["Web UI — server.py spawns pipeline"]
         UI1(["<b>Gallery plus viewer</b><br/>• mermaid render, pan, zoom<br/>• type, N claims, M flagged"]):::dispoNode
         UI2(["<b>Evidence drawer</b><br/>• Click node, see quotes<br/>• Verified or flagged badge"]):::dispoNode
-        RV(["<b>Chat panel</b><br/>• Fresh text builds, plain text revises<br/>• Muse drafts or revises, gates re-check<br/>• Refusals reported, republish"]):::dispoNode
+        RV(["<b>Chat panel via /api/chat</b><br/>• Fresh text builds, plain text revises<br/>• Muse drafts or revises, gates re-check<br/>• Refusals reported, republish"]):::dispoNode
     end
     subgraph DEV["Dev-time guard — no key needed"]
-        T(["<b>tests/ suite</b><br/>• Guards common, validator, server<br/>• 23 checks, offline"]):::section
+        T(["<b>tests/ suite</b><br/>• Guards gates, server, revise<br/>• 33 checks, offline"]):::section
         DF(["<b>inject_defect.py</b><br/>• Swaps two CLAIM quotes<br/>• Validator passes, verifier fails"]):::section
     end
     U1 --> O1

@@ -164,21 +164,25 @@ def run_revise_bg(job, rid, instruction):
         job["log"].append("asking Meta Muse to revise...")
         new_chart, refused = _model_revise(
             unit, chart_path.read_text(encoding="utf-8"), instruction, utype)
-        for attempt in (1, 2):  # revise, then at most one repair with defects
+        scratch.write_text(new_chart, encoding="utf-8")
+        subprocess.run([sys.executable, "tools/inject_refs.py", str(scratch),
+                        "--id", rid], cwd=ROOT, check=True)
+        v = subprocess.run([sys.executable, "tools/validate_mmd.py",
+                            str(scratch), str(src)],
+                           cwd=ROOT, capture_output=True, text=True)
+        if v.returncode != 0:  # at most one repair round, then publish as-is
+            job["log"].append("validate found defects; repairing once...")
+            new_chart, refused2 = _model_revise(
+                unit, scratch.read_text(encoding="utf-8"),
+                instruction + "\nFix these validator defects, changing "
+                "nothing else:\n" + v.stdout, utype)
+            refused = refused + refused2
             scratch.write_text(new_chart, encoding="utf-8")
             subprocess.run([sys.executable, "tools/inject_refs.py", str(scratch),
                             "--id", rid], cwd=ROOT, check=True)
             v = subprocess.run([sys.executable, "tools/validate_mmd.py",
                                 str(scratch), str(src)],
                                cwd=ROOT, capture_output=True, text=True)
-            if v.returncode == 0:
-                break
-            job["log"].append(f"validate found defects; repairing ({attempt}/1)...")
-            new_chart, refused2 = _model_revise(
-                unit, scratch.read_text(encoding="utf-8"),
-                instruction + "\nFix these validator defects, changing "
-                "nothing else:\n" + v.stdout, utype)
-            refused = refused + refused2
         ok, out = v.returncode == 0, v.stdout
         defects = [] if ok else _validate_nodes(out) + _claim_nodes(str(scratch), out)
         lines = [f" - {i} -> validator defect -> fix per source" for i in defects]
@@ -278,12 +282,12 @@ class H(BaseHTTPRequestHandler):
         except ValueError:
             self._json(400, {"error": "bad json"})
             return
-        rid = d.get("id", "")
-        if not ID_RE.match(rid):
+        raw = d.get("id", "")
+        if raw and not ID_RE.match(raw):
             self._json(400, {"error": "bad id"})
             return
-        rid = slugify(rid)
-        if not rid:
+        rid = slugify(raw)
+        if not rid and u.path != "/api/chat":
             self._json(400, {"error": "bad id"})
             return
         if u.path == "/api/revise":

@@ -258,7 +258,7 @@ $("run").addEventListener("click", async () => {
   const id = $("runid").value.trim(), src = $("src").value.trim();
   if (!id || !src) { $("runmsg").textContent = "need id + text/url"; return; }
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) { $("runmsg").textContent = "bad id"; return; }
-  const payload = { id, [src.startsWith("http") ? "url" : "text"]: src };
+  const payload = { id, [/^https?:\/\//.test(src) ? "url" : "text"]: src };
   const r = await fetch("/api/run", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
   const d = await r.json();
   if (!r.ok) { $("runmsg").textContent = d.error || "rejected"; return; }
