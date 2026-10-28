@@ -92,6 +92,29 @@ function openDrawer(nid) {
   $("drawer").hidden = false;
 }
 function closeDrawer() { $("drawer").hidden = true; }
+function slug(id) { return id.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+function addRevise(who, text) {
+  const d = document.createElement("div");
+  d.className = "r-" + who;
+  d.textContent = (who === "you" ? "You: " : "flowcheck: ") + text;
+  $("revise-log").appendChild(d);
+}
+async function pollRevise(job, id) {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    let s;
+    try { s = await (await fetch("/api/status?job=" + job)).json(); }
+    catch { return; }
+    if (s.state === "running") { setOverlay(true, s.log_tail); return; }
+    clearInterval(pollTimer); setOverlay(false);
+    addRevise("fc", (s.log_tail || "").split("\n").filter(Boolean).pop() || s.state);
+    if (s.state === "done") {
+      $("revise-msg").textContent = "";
+      await loadGallery(id);
+      await loadChart(id);
+    } else $("revise-msg").textContent = "failed";
+  }, 1000);
+}
 
 function updateFooter(mmd, report) {
   const n = Object.values(claims).reduce((a, l) => a + l.length, 0);
@@ -181,6 +204,7 @@ async function loadChart(id) {
     t.addEventListener("pointerdown", stop);
   }
   $("dock").hidden = false;
+  $("revise").hidden = false;
   updateZoom();
   updateFooter(mmd, report);
 }
@@ -243,6 +267,28 @@ $("run").addEventListener("click", async () => {
   poll(d.job);
 });
 $("drawer-x").addEventListener("click", closeDrawer);
+$("revise-x").addEventListener("click", () => { $("revise").hidden = true; });
+$("revise-send").addEventListener("click", async () => {
+  const raw = (galleryIdx >= 0 && galleryIds[galleryIdx]) || $("runid").value.trim();
+  const id = slug(raw);
+  const body = $("revise-text").value.trim();
+  if (!body) { $("revise-msg").textContent = "say something first"; return; }
+  const payload = { id };
+  if (/^https?:\/\//.test(body)) payload.url = body;
+  else if (galleryIdx < 0 || body.length > 280) payload.text = body;
+  else payload.message = body;
+  const r = await fetch("/api/chat", { method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload) });
+  const d = await r.json();
+  if (!r.ok) { $("revise-msg").textContent = d.error || "rejected"; return; }
+  addRevise("you", body);
+  $("revise-text").value = "";
+  if (d.reply) { addRevise("fc", d.reply); return; }
+  $("revise-msg").textContent = "working…";
+  showError(""); setOverlay(true, "");
+  pollRevise(d.job, id);
+});
 $("panbtn").addEventListener("click", () => {
   panMode = !panMode;
   $("panbtn").classList.toggle("on", panMode);
@@ -262,7 +308,7 @@ document.addEventListener("fullscreenchange", () => {
 });
 document.addEventListener("keydown", (e) => {
   if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
-  if (e.key === "Escape") closeDrawer();
+  if (e.key === "Escape") { closeDrawer(); $("revise").hidden = true; }
   else if (e.key === "0" && pz) { pz.resize(); pz.fit(); pz.center(); updateZoom(); }
   else if (e.key === "[" ) step(-1);
   else if (e.key === "]") step(1);

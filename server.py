@@ -2,10 +2,12 @@
 
 Run: .venv/bin/python server.py [port]   (default port 8000)
 """
+import datetime
 import json
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -77,6 +79,8 @@ def start_run(rid, text, url):
     def run_bg():
         try:
             pr = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=3600)
+            if pr.stdout.strip():
+                job["log"].append(pr.stdout.strip()[-2000:])
             job["log"].append(f"[exit {pr.returncode}]")
             if pr.stderr.strip():
                 job["log"].append(pr.stderr.strip()[-2000:])
@@ -88,6 +92,126 @@ def start_run(rid, text, url):
 
     threading.Thread(target=run_bg, daemon=True).start()
     return token, None
+
+
+def revise_error(rid, instruction):
+    """Validate a revise request. Returns an error string or None."""
+    if not instruction.strip():
+        return "need id plus instruction"
+    if len(instruction) > 2000:
+        return "instruction too long"
+    return None
+
+
+def route_chat(rid, has_chart, has_material, message):
+    """Route one chat message. Returns (action, reply).
+
+    action is build (fresh text/URL), revise (loaded chart), or ask
+    (immediate reply text, no job). Pure; no I/O.
+    """
+    if has_material:
+        if not rid:
+            return ("ask", "Give the chart a short id (letters, numbers, "
+                    "dashes), then send your text or link again.")
+        return ("build", None)
+    if has_chart:
+        if not message.strip():
+            return ("ask", "Say what to change, e.g. drop the REGEN node.")
+        return ("revise", None)
+    return ("ask", "Paste text or a link to start a new chart, "
+            "or open one from the gallery.")
+
+
+def start_revise(rid, instruction):
+    """Launch a revision job. Returns (job_token, error)."""
+    global _job_n
+    with _lock:
+        cur = _jobs.get("current")
+        if cur and cur["state"] == "running":
+            return None, "a run is already in progress"
+        _job_n += 1
+        token = f"job{_job_n}"
+        job = {"id": rid, "state": "running", "log": deque(maxlen=300), "rc": None}
+        _jobs["current"] = job
+        _jobs[token] = job
+    threading.Thread(target=lambda: run_revise_bg(job, rid, instruction),
+                     daemon=True).start()
+    return token, None
+
+
+def run_revise_bg(job, rid, instruction):
+    """Revise output/<rid>.mmd per instruction: model, inject, validate, publish."""
+    from orchestrator import claim_nodes as _claim_nodes
+    from orchestrator import validate_nodes as _validate_nodes
+    from writer import mark_residual as _mark_red
+    from writer import revise_chart as _model_revise
+
+    def done(state, msg):
+        job["log"].append(msg)
+        job["state"] = state
+
+    try:
+        src = ROOT / "workspace" / f"{rid}_source.md"
+        chart_path = ROOT / "output" / f"{rid}.mmd"
+        if not src.exists() or not chart_path.exists():
+            done("error", f"no source or chart for {rid}; run the pipeline first")
+            return
+        rep_path = ROOT / "output" / f"{rid}_report.md"
+        utype = parse_report(rep_path.read_text(encoding="utf-8")) \
+            if rep_path.exists() else None
+        unit = src.read_text(encoding="utf-8")
+        scratch = ROOT / "workspace" / f"{rid}.revise.mmd"
+        job["log"].append("asking Meta Muse to revise...")
+        new_chart, refused = _model_revise(
+            unit, chart_path.read_text(encoding="utf-8"), instruction, utype)
+        for attempt in (1, 2):  # revise, then at most one repair with defects
+            scratch.write_text(new_chart, encoding="utf-8")
+            subprocess.run([sys.executable, "tools/inject_refs.py", str(scratch),
+                            "--id", rid], cwd=ROOT, check=True)
+            v = subprocess.run([sys.executable, "tools/validate_mmd.py",
+                                str(scratch), str(src)],
+                               cwd=ROOT, capture_output=True, text=True)
+            if v.returncode == 0:
+                break
+            job["log"].append(f"validate found defects; repairing ({attempt}/1)...")
+            new_chart, refused2 = _model_revise(
+                unit, scratch.read_text(encoding="utf-8"),
+                instruction + "\nFix these validator defects, changing "
+                "nothing else:\n" + v.stdout, utype)
+            refused = refused + refused2
+        ok, out = v.returncode == 0, v.stdout
+        defects = [] if ok else _validate_nodes(out) + _claim_nodes(str(scratch), out)
+        lines = [f" - {i} -> validator defect -> fix per source" for i in defects]
+        body = "\n".join(l for l in new_chart.splitlines()
+                         if not l.startswith("%% generated"))
+        prov = (f"%% revised by muse-spark-1.3 via api.meta.ai | "
+                f"{datetime.date.today().isoformat()}\n")
+        final = prov + (_mark_red(body, lines) if defects else body + "\n")
+        with tempfile.NamedTemporaryFile("w", delete=False, dir=ROOT / "output",
+                                         suffix=".mmd", encoding="utf-8") as t:
+            t.write(final)
+        Path(t.name).replace(chart_path)
+        print(f"{chart_path}: replaced")
+        old = rep_path.read_text(encoding="utf-8") if rep_path.exists() else ""
+        if old and not old.endswith("\n"):
+            old += "\n"
+        status = "clean" if ok and not defects else \
+            f"flagged: {len(defects)} remain"
+        note = (f"revise: {instruction}\nrevise result: {status}; "
+                f"refused: {'; '.join(refused) if refused else 'none'}\n")
+        with tempfile.NamedTemporaryFile("w", delete=False, dir=ROOT / "output",
+                                         suffix=".md", encoding="utf-8") as t:
+            t.write(old + note)
+        Path(t.name).replace(rep_path)
+        print(f"{rep_path}: replaced")
+        try:
+            scratch.unlink()
+        except OSError:
+            pass
+        done("done", f"revise {status}")
+    except Exception as e:  # never leave a job stuck
+        job["log"].append(f"revise failed: {e}")
+        job["state"] = "error"
 
 
 class H(BaseHTTPRequestHandler):
@@ -139,7 +263,7 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urlparse(self.path)
-        if u.path != "/api/run":
+        if u.path not in ("/api/run", "/api/revise", "/api/chat"):
             self._json(404, {"error": "not found"})
             return
         try:
@@ -155,18 +279,48 @@ class H(BaseHTTPRequestHandler):
             self._json(400, {"error": "bad json"})
             return
         rid = d.get("id", "")
-        text, url = d.get("text", ""), d.get("url", "")
-        if not ID_RE.match(rid) or (not text and not url):
-            self._json(400, {"error": "need id plus text or url"})
+        if not ID_RE.match(rid):
+            self._json(400, {"error": "bad id"})
             return
         rid = slugify(rid)
         if not rid:
             self._json(400, {"error": "bad id"})
             return
-        if url and not url.startswith(("http://", "https://")):
-            self._json(400, {"error": "url must be http(s)"})
-            return
-        token, err = start_run(rid, text, url or None)
+        if u.path == "/api/revise":
+            err = revise_error(rid, d.get("instruction", ""))
+            if err:
+                self._json(400, {"error": err})
+                return
+            token, err = start_revise(rid, d.get("instruction", "").strip())
+        elif u.path == "/api/chat":
+            text, url = d.get("text", ""), d.get("url", "")
+            message = d.get("message", "")
+            has_chart = (ROOT / "output" / f"{rid}.mmd").exists() if rid else False
+            action, reply = route_chat(rid, has_chart, bool(text or url),
+                                       message)
+            if action == "ask":
+                self._json(200, {"reply": reply})
+                return
+            if action == "build":
+                if url and not url.startswith(("http://", "https://")):
+                    self._json(400, {"error": "url must be http(s)"})
+                    return
+                token, err = start_run(rid, text, url or None)
+            else:
+                err = revise_error(rid, message)
+                if err:
+                    self._json(400, {"error": err})
+                    return
+                token, err = start_revise(rid, message.strip())
+        else:
+            text, url = d.get("text", ""), d.get("url", "")
+            if not text and not url:
+                self._json(400, {"error": "need id plus text or url"})
+                return
+            if url and not url.startswith(("http://", "https://")):
+                self._json(400, {"error": "url must be http(s)"})
+                return
+            token, err = start_run(rid, text, url or None)
         if err:
             self._json(409, {"error": err})
             return

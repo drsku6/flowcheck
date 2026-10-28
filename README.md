@@ -40,7 +40,7 @@ Prefer a viewer with pan and zoom? Start the bundled web UI:
 .venv/bin/python server.py   # serves http://127.0.0.1:8000
 ```
 
-It shows the `output/` gallery, runs the same orchestrator as a subprocess from pasted text or a URL, and opens an evidence drawer with the verbatim quotes behind any clicked node.
+It shows the `output/` gallery, runs the same orchestrator as a subprocess from pasted text or a URL, opens an evidence drawer with the verbatim quotes behind any clicked node, and revises charts from chat instructions (unsupported additions are refused).
 
 Input notes: plain `.txt` is safest; scanned PDFs are rejected; Wikipedia pages are cleaned automatically. Keep sources under 50,000 characters (`wc -m` to check); split longer texts and run each part separately.
 

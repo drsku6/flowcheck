@@ -7,7 +7,7 @@ Model everywhere below is Meta Muse (`muse-spark-1.3` via the Meta Model API).
 |---|---|---|
 | `orchestrator.py` | One command driving the whole flow; skips existing output unless `--force`; refuses sources over 50K chars; spawns stages, repairs, writes atomically | no (spawns model stages) |
 | `ingest.py` | URL/file → clean markdown + provenance JSON | no |
-| `writer.py` | Drafts the one chart (classifies type in-call); marks residual failures red | yes — 1 call + at most 1 repair call |
+| `writer.py` | Drafts the one chart (classifies type in-call); `revise_chart` per instruction; marks residual failures red | yes — 1 call + repairs |
 | `verifier.py` | Fresh VERIFY_CARD audit of source + chart | yes — 1 call, `--verify` only |
 | `common.py` | Shared verbatim-match helpers (`norm`, `quote_in_source`) | no |
 | `tools/validate_mmd.py` | Mechanical gates: verbatim quotes, counts, exits, labels | no |
@@ -17,13 +17,14 @@ Model everywhere below is Meta Muse (`muse-spark-1.3` via the Meta Model API).
 | `tests/test_validate_mmd.py` | Offline gate checks driving the real validator CLI | no |
 | `tests/test_server.py` | Offline checks for report-type parsing + id slugify | no |
 | `tests/test_inject_defect.py` | Swap keeps validator PASS (quotes stay verbatim) | no |
+| `tests/test_revise.py` | Revise reply parsing, request validation, chat routing | no |
 | `cards/WRITER_CARD.md` | Universal chart rules the writer follows | read by Meta Muse |
 | `cards/VERIFY_CARD.md` | PASS/FAIL rules the verifier follows | read by Meta Muse |
 | `cards/STYLE_TARGET.mmd` | ClassDefs + node syntax the writer copies | read by Meta Muse |
 | `cards/profiles/*.md` (6) | Node/diamond/edge/bullet meaning per text type | read by Meta Muse |
 | `skills/flowcheck-chart/SKILL.md` | Agentic chart-building role for AI assistants | executed by Meta Muse |
 | `skills/flowcheck-verify/SKILL.md` | Agentic read-only audit role for AI assistants | executed by Meta Muse |
-| `server.py` | Web UI backend; runs orchestrator as subprocess | no (spawns pipeline) |
+| `server.py` | Web UI backend; `/api/chat` routes build vs revise; spawns pipeline | no (spawns pipeline) |
 | `ui/index.html`, `ui/app.js`, `ui/style.css` | Gallery, viewer, evidence drawer, footer | no |
 | `ui/vendor/mermaid.min.js` | Renders flowcharts in the browser (v10.9.1, MIT) | no |
 | `ui/vendor/svg-pan-zoom.min.js` | Pan/zoom interaction (v3.6.1, BSD-2-Clause) | no |

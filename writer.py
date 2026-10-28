@@ -71,6 +71,46 @@ def write_chart(unit_text, utype=None, extra=""):
     return t, extract_chart(body)
 
 
+REVISE_TMPL = """Revise the chart below per the request. Obey the same card rules
+(verbatim CLAIM per bullet and labeled edge, no outside knowledge, same label
+rules). Return the full revised chart in one ```mermaid fenced block, nothing
+else inside it. If the request asks for anything the unit text does not state,
+leave that part out and list it after the fence as REFUSED: <reason> lines.
+
+REVISION REQUEST:
+<<<REQ>>>
+
+CURRENT CHART:
+<<<CHART>>>
+"""
+
+
+def split_refusals(out):
+    """Chart plus REFUSED lines from a revise reply. Pure; no model call."""
+    refused = [l.strip() for l in out.splitlines()
+               if l.strip().startswith("REFUSED:")]
+    body = "\n".join(l for l in out.splitlines()
+                     if not l.strip().startswith("REFUSED:")) + "\n"
+    return extract_chart(body), refused
+
+
+def revise_chart(unit_text, chart, instruction, utype=None):
+    """One model call revising a chart. Returns (chart, refusals)."""
+    global _calls
+    prompt = (base_prompt(utype if utype in TYPES else "general")
+              + "Unit text:\n" + unit_text + "\n"
+              + REVISE_TMPL.replace("<<<REQ>>>", instruction)
+                           .replace("<<<CHART>>>", chart))
+    t0 = time.perf_counter()
+    out = call_muse(prompt)
+    dt = time.perf_counter() - t0
+    with _lock:
+        _calls += 1
+        n = _calls
+    print(f"[writer] revise call {n} {dt:.1f}s", flush=True)
+    return split_refusals(out)
+
+
 def mark_residual(text, defects):
     """Red-style nodes/edges named in defect lines; ⚠ on bullets of bad nodes."""
     bad_nodes = {m.group(1) for d in defects for m in [re.match(r" - (\w+)", d)] if m}
