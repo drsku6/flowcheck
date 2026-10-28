@@ -11,3 +11,4 @@ output/*
 !output/calvin-cycle_report.md
 !output/tea-test.mmd
 !output/tea-test_report.md
+docs/demo-script.md

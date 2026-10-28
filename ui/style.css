@@ -1,0 +1,274 @@
+/* flowcheck ui — plain light theme, slate + cyan. Chart canvas stays light. */
+:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #0284c7;
+  --accent-dark: #0369a1;
+  --good-bg: #d1fae5;
+  --good-text: #065f46;
+  --bad-bg: #fee2e2;
+  --bad-text: #991b1b;
+}
+
+body {
+  margin: 0;
+  font: 14px/1.4 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Slim white topbar. */
+#topbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+#brand { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; letter-spacing: -0.01em; }
+#brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+#brand .check { color: var(--accent); }
+#topbar .sep { width: 1px; height: 16px; background: var(--border); }
+#gallery, #src, #runid {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  background: var(--panel);
+}
+#src { flex: 1; min-width: 180px; }
+#run {
+  padding: 6px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#run:hover { background: var(--accent-dark); }
+#runmsg { color: var(--muted); font-size: 12px; }
+
+main { flex: 1; display: flex; min-height: 0; }
+#viewer { flex: 1; position: relative; min-width: 0; background: var(--panel); }
+
+/* Architectural grid canvas, always light. */
+#canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(to right, rgba(226, 232, 240, 0.8) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(226, 232, 240, 0.8) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+#canvas svg { width: 100%; height: 100%; }
+#canvas text { user-select: none; }
+#viewer.pan-on #canvas { cursor: grab; }
+#viewer.pan-on #canvas:active { cursor: grabbing; }
+#empty { padding: 40px; color: var(--muted); }
+
+/* Mermaid polish: hover highlight, edge pills, visible labels, live links. */
+#canvas .node rect, #canvas .node polygon { transition: stroke 0.15s ease, filter 0.15s ease; }
+#canvas .node:hover rect, #canvas .node:hover polygon {
+  stroke: var(--accent) !important;
+  filter: drop-shadow(0 2px 8px rgba(2, 132, 199, 0.2));
+}
+#canvas foreignObject { overflow: visible !important; }
+#canvas .edgeLabel { background: transparent !important; border: none !important; padding: 0 !important; }
+#canvas .labelBkg {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  padding: 2px 8px !important;
+}
+#canvas span.edgeLabel, #canvas span.edgeLabel p {
+  color: var(--text) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  text-align: center !important;
+}
+#canvas a { color: var(--accent) !important; font-weight: 600 !important; }
+
+/* Floating chart pill + stepper, top-left. */
+#pill {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+#pill[hidden] { display: none; }
+#pillname {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+#pillcount {
+  background: #cffafe;
+  color: #155e75;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 800;
+}
+#stepper {
+  display: flex;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: 2px;
+}
+#stepper button {
+  border: none;
+  background: none;
+  color: #475569;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#stepper button:hover:not(:disabled) { background: #f1f5f9; color: var(--text); }
+#stepper button:disabled { color: #cbd5e1; cursor: default; }
+
+/* Floating control dock, right side. */
+#dock {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+}
+#dock[hidden] { display: none; }
+#dock button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: #475569;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+#dock button:hover { background: #f1f5f9; color: var(--text); }
+#dock button.on { background: var(--accent); color: #fff; }
+#dock .div { width: 24px; height: 1px; background: var(--border); margin: 2px 0; }
+#dpct { font-size: 10px; font-weight: 800; color: var(--muted); padding: 2px 0; }
+
+/* Run overlay: pill loader + log. */
+#overlay { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.75); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 40; }
+#overlay[hidden], #err[hidden], #drawer[hidden] { display: none; }
+.loadpill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+.spin { width: 16px; height: 16px; border: 2px solid #cbd5e1; border-top-color: var(--accent); border-radius: 50%; animation: sp 0.8s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+#log { max-width: 80%; max-height: 40%; overflow: auto; background: #f1f5f9; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; margin: 0; }
+
+/* Error card. */
+#err {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: 520px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 10px 14px;
+  color: var(--bad-text);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* Evidence drawer. */
+#drawer { width: 320px; border-left: 1px solid var(--border); background: #fafafa; overflow-y: auto; padding: 12px 14px; flex-shrink: 0; }
+#drawer-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+#drawer-title { font-weight: 800; }
+#drawer-badge { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--good-bg); color: var(--good-text); }
+#drawer-badge.bad { background: var(--bad-bg); color: var(--bad-text); }
+#drawer-x { margin-left: auto; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; width: 28px; height: 28px; cursor: pointer; color: var(--muted); }
+#drawer-x:hover { color: var(--text); background: #f1f5f9; }
+#claims { list-style: none; margin: 0; padding: 0; }
+#claims li { border-top: 1px solid var(--border); padding: 8px 0; font-size: 13px; }
+#claims li:first-child { border-top: none; }
+#claims .cn { font-size: 11px; color: var(--muted); font-weight: 700; }
+#claims blockquote { margin: 4px 0 0; padding-left: 8px; border-left: 2px solid #94a3b8; }
+
+footer {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 6px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+#counts { font-weight: 700; color: var(--text); }
+#refs { flex: 1; min-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#refs a { color: var(--accent); font-weight: 600; }
+#zpct { font-weight: 800; }
+
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+  #canvas .node rect, #canvas .node polygon { transition: none; }
+}
+@media (max-width: 800px) {
+  #drawer { position: absolute; right: 0; top: 0; bottom: 0; z-index: 30; box-shadow: -4px 0 16px rgba(15, 23, 42, 0.12); }
+  #brand .word { display: none; }
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flowcheck</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header id="topbar">
+  <span id="brand"><span class="dot"></span><span class="word">flow<span class="check">check</span></span></span>
+  <span class="sep"></span>
+  <select id="gallery" aria-label="chart gallery"><option value="">— gallery —</option></select>
+  <input id="src" type="text" placeholder="paste text or https://… url" aria-label="source text or url">
+  <input id="runid" type="text" placeholder="id" aria-label="chart id" size="12">
+  <button id="run">Run</button>
+  <span id="runmsg"></span>
+</header>
+<main>
+  <section id="viewer">
+    <div id="canvas"><div id="empty">Pick a chart from the gallery, or paste text and press Run.</div></div>
+    <div id="pill" hidden>
+      <span id="pillname"></span><span id="pillcount"></span>
+      <span id="stepper">
+        <button id="prev" aria-label="previous chart" title="Previous chart ( [ )">‹</button>
+        <button id="next" aria-label="next chart" title="Next chart ( ] )">›</button>
+      </span>
+    </div>
+    <div id="dock" hidden role="toolbar" aria-label="View controls">
+      <button id="panbtn" aria-label="Pan tool" title="Pan mode (drag canvas; off = select text)">Pan</button>
+      <div class="div"></div>
+      <button id="zin" aria-label="Zoom in" title="Zoom in">+</button>
+      <button id="zout" aria-label="Zoom out" title="Zoom out">−</button>
+      <button id="zone" aria-label="Reset to 1:1" title="Reset to 100% (1:1)">1:1</button>
+      <button id="zfit" aria-label="Fit to screen" title="Fit to screen (0)">Fit</button>
+      <div class="div"></div>
+      <button id="zfull" aria-label="Fullscreen" title="Fullscreen">⤢</button>
+      <span id="dpct">100%</span>
+    </div>
+    <div id="overlay" hidden><div class="loadpill"><div class="spin"></div><span>Running…</span></div><pre id="log"></pre></div>
+    <div id="err" hidden></div>
+  </section>
+  <aside id="drawer" hidden>
+    <div id="drawer-head"><span id="drawer-title"></span><span id="drawer-badge"></span><button id="drawer-x" aria-label="close">×</button></div>
+    <ul id="claims"></ul>
+  </aside>
+</main>
+<footer>
+  <span id="counts"></span>
+  <span id="refs"></span>
+  <span id="zpct">100%</span>
+</footer>
+<script src="/vendor/mermaid.min.js"></script>
+<script src="/vendor/svg-pan-zoom.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

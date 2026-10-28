@@ -1,6 +1,7 @@
 import argparse
 import concurrent.futures
 import datetime
+import difflib
 import json
 import os
 import re
@@ -12,7 +13,7 @@ import threading
 import time
 from pathlib import Path
 
-from extractor import norm
+from common import norm, quote_in_source
 from writer import mark_residual, write_chart
 
 
@@ -31,31 +32,6 @@ def stage(name, cmd):
 
 def slugify(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-
-
-def removals(prev_graph, new_graph, prev_flagged):
-    """Flagged edges the repair dropped: same-label edge gone, or endpoint unused."""
-    out = []
-    new_unused = set(new_graph.get("unused", []))
-    prev_unused = set(prev_graph.get("unused", []))
-    labeled_from = {}
-    for e in new_graph.get("edges", []):
-        if (isinstance(e, dict) and isinstance(e.get("from"), str)
-                and isinstance(e.get("label"), str) and e.get("label").strip()):
-            labeled_from.setdefault(e["from"], set()).add(e["label"].strip())
-    for v in prev_flagged:
-        if v.get("kind") != "edge":
-            continue
-        a, lab = v.get("from"), v.get("label") or ""
-        if not isinstance(a, str) or not isinstance(lab, str) or not lab.strip():
-            continue
-        for node in (a, v.get("to")):
-            if isinstance(node, str) and node in new_unused - prev_unused:
-                out.append(f"node {node} moved to unused")
-        if lab.strip() not in labeled_from.get(a, set()):
-            out.append(f"flagged edge {a} -> {v.get('to')} {lab.strip()!r} missing: "
-                       f"node {a} has no {lab.strip()!r}-labeled edge")
-    return out
 
 
 def atomic_write(path, text):
@@ -90,94 +66,10 @@ def cleanup_splits(stem, sid, keep):
             print(f"{path}: removed")
 
 
-def load_verify(sid):
-    vj = json.loads(Path(f"workspace/{sid}_verify.json").read_text(encoding="utf-8"))
-    return vj["results"] if isinstance(vj, dict) else vj
-
-
-def update_report(sid, rejected_all):
-    g = json.loads(Path(f"workspace/{sid}_graph.json").read_text(encoding="utf-8"))
-    lines = [f"Dropped: {g.get('dropped', [])}", f"unused: {g.get('unused', [])}"]
-    if rejected_all:
-        lines.append(f"Rejected repairs: {'; '.join(rejected_all)}")
-    with open(f"workspace/{sid}_report.md", "a", encoding="utf-8") as f:
-        f.write("\n" + "\n".join(lines) + "\n")
-
-
-def run_pipeline(source, sid, max_rounds):
-    """Run all stages for one source. Returns summary dict. Raises StageFailed."""
-    py = sys.executable
-    stage("ingest", [py, "ingest.py", source, "--id", sid])
-    stage("extractor", [py, "extractor.py", f"workspace/{sid}_source.md", "--id", sid])
-
-    hist, status, rounds_used = [], None, 0
-    rejected_all, flagged = [], []
-    prev_graph, prev_flagged, accepted_r = None, [], 0
-    for r in range(1, max_rounds + 1):
-        cmd = [py, "structurer.py", "--id", sid]
-        if r > 1:
-            cmd += ["--feedback", f"workspace/{sid}_feedback.json"]
-        try:
-            stage(f"structurer r{r}", cmd)
-            stage(f"verifier r{r}", [py, "verifier.py", "--id", sid])
-        except StageFailed as e:
-            if r == 1:
-                raise
-            print(f"round r{r} failed: {e.stage}; keeping accepted round {accepted_r}")
-            rejected_all.append(f"r{r}: {e.stage} failed")
-            shutil.copy(f"workspace/{sid}_graph_r{accepted_r}.json", f"workspace/{sid}_graph.json")
-            shutil.copy(f"workspace/{sid}_verify_r{accepted_r}.json", f"workspace/{sid}_verify.json")
-            flagged = [v for v in load_verify(sid) if v.get("verdict") in ("unsupported", "unclear")]
-            update_report(sid, rejected_all)
-            hist.append((r, len(flagged)))
-            rounds_used = r
-            break
-        shutil.copy(f"workspace/{sid}_graph.json", f"workspace/{sid}_graph_r{r}.json")
-        shutil.copy(f"workspace/{sid}_verify.json", f"workspace/{sid}_verify_r{r}.json")
-        new_graph = json.loads(Path(f"workspace/{sid}_graph.json").read_text(encoding="utf-8"))
-        flagged = [v for v in load_verify(sid) if v.get("verdict") in ("unsupported", "unclear")]
-        removed = removals(prev_graph, new_graph, prev_flagged) if r > 1 else []
-        if removed:  # reject the round: flagged content was deleted, not fixed
-            print(f"round r{r} rejected: repair removed content")
-            for d in removed:
-                print(f"  - {d}")
-            rejected_all += [f"r{r}: {d}" for d in removed]
-            shutil.copy(f"workspace/{sid}_graph_r{accepted_r}.json", f"workspace/{sid}_graph.json")
-            shutil.copy(f"workspace/{sid}_verify_r{accepted_r}.json", f"workspace/{sid}_verify.json")
-            flagged = [v for v in load_verify(sid) if v.get("verdict") in ("unsupported", "unclear")]
-        else:
-            prev_graph, prev_flagged = new_graph, flagged
-            accepted_r = r
-        update_report(sid, rejected_all)
-        hist.append((r, len(flagged)))
-        rounds_used = r
-        repairable = [v for v in flagged if v["kind"] in ("node", "edge")]
-        if not repairable:
-            break  # bullets alone never trigger another round
-        fb = {"edges": [{"from": v["from"], "to": v["to"], "label": v.get("label"),
-                         "verdict": v["verdict"], "reason": v["reason"]}
-                        for v in repairable if v["kind"] == "edge"]}
-        Path(f"workspace/{sid}_feedback.json").write_text(json.dumps(fb, indent=2), encoding="utf-8")
-    if not flagged and not rejected_all:
-        status = "clean"
-    else:
-        status = f"flagged: {len(flagged)} remain"
-
-    try:
-        stage("renderer", [py, "renderer.py", "--id", sid])
-    except StageFailed as e:
-        raise StageFailed(e.stage, 1) from None
-    g = json.loads(Path(f"workspace/{sid}_graph.json").read_text(encoding="utf-8"))
-    print(f"rounds used: {rounds_used}")
-    print(" -> ".join(f"r{r}: {n} flagged" for r, n in hist))
-    print(f"final status: {status}")
-    print(f"dropped: {g.get('dropped', [])}, unused: {g.get('unused', [])}")
-    return {"rounds": rounds_used, "hist": hist, "status": status}
-
-
-USAGE = """usage: orchestrator.py input/<name> [--max-rounds N] [--cards] [--verify]
-       orchestrator.py --all [--max-rounds N] [--cards] [--verify]
-       orchestrator.py --text "..." --id <name> [--cards] [--verify]"""
+USAGE = """usage: orchestrator.py input/<name> [--verify]
+       orchestrator.py --all [--verify]
+       orchestrator.py --text "..." --id <name> [--verify]
+       orchestrator.py --url <link> --id <name> [--verify]"""
 
 
 def slice_units(source, units):
@@ -214,6 +106,40 @@ def validate_nodes(out):
     return ids
 
 
+def local_repair(scratch, md_path, threshold=0.9, min_len=20):
+    """Fix near-verbatim CLAIM quotes without a model call. Returns fixed count.
+
+    A failing quote scoring >= threshold against a source sentence is replaced
+    by that verbatim sentence. Anything else is left for the writer repair
+    call; re-validation stays the gate either way.
+    """
+    lines = Path(scratch).read_text(encoding="utf-8").splitlines()
+    src = Path(md_path).read_text(encoding="utf-8")
+    sents = [s.strip() for ln in src.splitlines()
+             for s in re.split(r"(?<=[.!?])\s+", ln) if len(s.strip()) >= min_len]
+    normed = [(s, norm(s)) for s in sents]
+    fixed = 0
+    for i, ln in enumerate(lines):
+        m = re.match(r"(%% CLAIM C\d+ \| )(.*)( \| \w+\s*)$", ln.strip())
+        if not m or quote_in_source(m.group(2), src):
+            continue
+        nq = norm(m.group(2))
+        if len(nq) < min_len:
+            continue
+        best, best_r = None, 0.0
+        for s, ns in normed:
+            r = difflib.SequenceMatcher(None, nq, ns).ratio()
+            if r > best_r:
+                best, best_r = s, r
+        if best is not None and best_r >= threshold:
+            indent = ln[:len(ln) - len(ln.lstrip())]
+            lines[i] = f"{indent}{m.group(1)}{best}{m.group(3)}"
+            fixed += 1
+    if fixed:
+        atomic_write(scratch, "\n".join(lines) + "\n")
+    return fixed
+
+
 def claim_nodes(scratch, out):
     """Node ids whose CLAIM lines failed the verbatim check."""
     ids = []
@@ -233,7 +159,7 @@ def claim_nodes(scratch, out):
     return ids
 
 
-def run_cards(source, sid, stem, input_stem, max_rounds, verify, times, skip_ingest=False):
+def run_cards(source, sid, stem, input_stem, verify, times, skip_ingest=False):
     """Fast default: ingest, writer, inject, validate, one repair. --verify adds checks."""
     py = sys.executable
     if not skip_ingest:
@@ -275,6 +201,11 @@ def run_cards(source, sid, stem, input_stem, max_rounds, verify, times, skip_ing
         atomic_write(scratch, chart)
         stage("inject_refs", [py, "tools/inject_refs.py", scratch, "--id", input_stem])
         ok, out = validate_once(py, scratch, md_path, times)
+        if not ok:  # deterministic fix first; writer repair only for the rest
+            n_fixed = local_repair(scratch, md_path)
+            if n_fixed:
+                print(f"local repair: fixed {n_fixed} quote(s)")
+                ok, out = validate_once(py, scratch, md_path, times)
         if not ok:  # at most one repair call, validator errors only
             utype, chart = write_chart(unit, utype,
                                        "Fix every defect and return the full chart:\n" + out)
@@ -382,7 +313,7 @@ def print_times(times, t0):
     print(f"total: {time.perf_counter() - t0:.1f}s")
 
 
-def process_file(p, max_rounds, cards=False, verify=False):
+def process_file(p, verify=False):
     """Run one input file end to end. Raises StageFailed on stage failure."""
     stem, sid = p.stem, slugify(p.stem)
     if not sid:
@@ -394,20 +325,21 @@ def process_file(p, max_rounds, cards=False, verify=False):
         source = lines[0].strip()
     else:
         source = str(p)
-    if cards:
-        times, t0 = {}, time.perf_counter()
-        res = run_cards(source, sid, stem, p.stem, max_rounds, verify, times)
-        print_times(times, t0)
-        print(f"{p.name}: {res['status']}, {', '.join(res['paths'])}")
-        return
-    res = run_pipeline(source, sid, max_rounds)
-    atomic_copy(f"workspace/{sid}.mmd", f"output/{stem}.mmd")
-    atomic_copy(f"workspace/{sid}_report.md", f"output/{stem}_report.md")
-    cleanup_splits(stem, sid, set())
-    print(f"{p.name}: rounds used {res['rounds']}, {res['status']}, output/{stem}.mmd")
+    times, t0 = {}, time.perf_counter()
+    res = run_cards(source, sid, stem, p.stem, verify, times)
+    print_times(times, t0)
+    print(f"{p.name}: {res['status']}, {', '.join(res['paths'])}")
 
 
-def process_text(text, sid, max_rounds, verify):
+def process_url(url, sid, verify):
+    """Run a URL end to end with no input file. ingest fetches it directly."""
+    times, t0 = {}, time.perf_counter()
+    res = run_cards(url, sid, sid, sid, verify, times)
+    print_times(times, t0)
+    print(f"--url: {res['status']}, {', '.join(res['paths'])}")
+
+
+def process_text(text, sid, verify):
     """Run raw pasted text end to end. Writes source files directly, no ingest."""
     stem = sid
     atomic_write(f"workspace/{sid}_source.md", text.rstrip("\n") + "\n")
@@ -416,7 +348,7 @@ def process_text(text, sid, max_rounds, verify):
          "fetched_at": datetime.date.today().isoformat(),
          "chars": len(text), "pages": None}, indent=2))
     times, t0 = {}, time.perf_counter()
-    res = run_cards("--text", sid, stem, sid, max_rounds, verify, times, skip_ingest=True)
+    res = run_cards("--text", sid, stem, sid, verify, times, skip_ingest=True)
     print_times(times, t0)
     print(f"--text: {res['status']}, {', '.join(res['paths'])}")
 
@@ -426,27 +358,39 @@ def main():
     ap.add_argument("input_path", nargs="?")
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--force", action="store_true")
-    ap.add_argument("--cards", action="store_true")
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--text", default=None)
+    ap.add_argument("--url", default=None)
     ap.add_argument("--id", default=None)
-    ap.add_argument("--max-rounds", type=int, default=3)
     args = ap.parse_args()
-    if args.verify and not args.cards:
-        args.cards = True
+
+    if args.url is not None:
+        if args.all or args.input_path or args.text is not None:
+            sys.exit("error: --url takes no input file or --text")
+        if not args.id:
+            sys.exit("error: --url requires --id")
+        if not args.url.startswith(("http://", "https://")):
+            sys.exit("error: --url must be http(s)")
+        sid = slugify(args.id)
+        if not sid:
+            sys.exit(f"error: cannot make an id from {args.id!r}")
+        try:
+            process_url(args.url, sid, args.verify)
+        except StageFailed as e:
+            sys.exit(str(e))
+        print("processed 1, skipped 0, failed 0")
+        return
 
     if args.text is not None:
-        if args.all or args.input_path:
-            sys.exit("error: --text takes no input file")
+        if args.all or args.input_path or args.url is not None:
+            sys.exit("error: --text takes no input file or --url")
         if not args.id:
             sys.exit("error: --text requires --id")
         sid = slugify(args.id)
         if not sid:
             sys.exit(f"error: cannot make an id from {args.id!r}")
         try:
-            if not args.cards:
-                sys.exit("error: --text currently requires --cards")
-            process_text(args.text, sid, args.max_rounds, args.verify)
+            process_text(args.text, sid, args.verify)
         except StageFailed as e:
             sys.exit(str(e))
         print("processed 1, skipped 0, failed 0")
@@ -469,7 +413,7 @@ def main():
         done, skipped, failures = 0, 0, 0
         for p in files:
             try:
-                process_file(p, args.max_rounds, args.cards, args.verify)
+                process_file(p, args.verify)
             except StageFailed as e:
                 print(f"{p.name}: FAILED at {e.stage}")
                 failures += 1
@@ -487,7 +431,7 @@ def main():
     if not p.is_file():
         sys.exit(f"error: file not found: {args.input_path}")
     try:
-        process_file(p, args.max_rounds, args.cards, args.verify)
+        process_file(p, args.verify)
     except StageFailed as e:
         sys.exit(str(e))
     print("processed 1, skipped 0, failed 0")

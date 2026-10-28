@@ -17,8 +17,10 @@ You turn source text into a Mermaid teaching chart. The chart must teach the tex
 - One subgraph per phase, titled with the phase name.
 
 ## Roles
-- START (context): one node, opens the chart, frames the topic.
+- START (context): one node, opens the chart, 2–4 bullets framing the topic in source terms. No synthesis, nothing the source says later.
 - Section subgraphs group one phase each.
-- Diamonds only for branches the source states, with at least 2 labeled exits.
-- Output nodes close product/result chains.
-- TAKE: one one-line synthesis at the end.
+- Diamonds only for branches the source states, with at least 2 labeled exits. Number them (`1. ...`) ordered broad to specific. Each exit label names the source-stated routing condition, never filler (next, then, continue, also, other, more).
+- No fact twice: state each fact on exactly one node or edge. Bullets must not restate the incoming edge label.
+- Every CLAIM is one complete verbatim source sentence: capital start, .!? end, never opening with a bare anaphor (It, They, These, This, Such, Those, Both, Neither).
+- Output nodes close product/result chains with complementary detail (thresholds, numbers kept exactly).
+- TAKE: one one-line synthesis at the end, in source terms only.

@@ -8,7 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from extractor import quote_in_source
+from common import quote_in_source
 
 ALLOWED = {"supported", "unsupported", "unclear"}
 
@@ -228,7 +228,7 @@ def main():
     unrep = sorted({f"{r['id']}#{r['index']}" for r in results
                     if r["kind"] == "detail" and r["verdict"] not in ("supported",)})
     if unrep:
-        md.append(f"Unrepairable by structurer: {', '.join(unrep)}")
+        md.append(f"Unrepairable by writer: {', '.join(unrep)}")
         md.append("")
     counts = {}
     for r in results:

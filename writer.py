@@ -85,8 +85,8 @@ def mark_residual(text, defects):
                 out.append(line)
                 out.append(f"linkStyle {edge_idx - 1} stroke:#ef4444,stroke-width:2px")
                 continue
-        m = re.match(r"(\s*\w+(?:\(\[|\{)\".*\"(?:\]\)|\}):::)\w+", line)
-        if m and line.strip().split("(")[0].split("{")[0].strip() in bad_nodes:
+        m = re.match(r"\s*(\w+)(?:\(\[|\[|\{)\".*\"(?:\]\)|\]|\}):::\w+", line)
+        if m and m.group(1) in bad_nodes:
             line = re.sub(r":::\w+$", ":::safetyNode", line)
             line = line.replace("• ", "• ⚠ ")
         out.append(line)
