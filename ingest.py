@@ -345,14 +345,27 @@ def main():
     text = normalize(text)
     out = Path("workspace")
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{args.source_id}_source.md").write_text(text + "\n", encoding="utf-8")
+    atomic_write(out / f"{args.source_id}_source.md", text + "\n")
     prov = {"source": src, "url_or_null": url_or_null, "title": title,
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "chars": len(text), "pages": pages, "oldid": oldid}
-    (out / f"{args.source_id}_source.json").write_text(json.dumps(prov, indent=2))
+    atomic_write(out / f"{args.source_id}_source.json", json.dumps(prov, indent=2))
 
     print(f"pages: {pages if pages else 'n/a'}, chars: {len(text)}")
     print("Check the source's license before using it in a demo.")
+
+
+def atomic_write(path, text):
+    """Temp file in the same folder, then os.replace; prints created/replaced."""
+    import os
+    import tempfile
+    path = str(path)
+    existed = os.path.exists(path)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, path)
+    print(f"{path}: {'replaced' if existed else 'created'}")
 
 
 if __name__ == "__main__":

@@ -3,3 +3,11 @@ data/
 .venv/
 __pycache__/
 workspace/
+input/*
+!input/calvin-cycle.url
+output/*
+!output/.gitkeep
+!output/calvin-cycle.mmd
+!output/calvin-cycle_report.md
+!output/tea-test.mmd
+!output/tea-test_report.md

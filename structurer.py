@@ -12,7 +12,7 @@ from extractor import norm, quote_in_source
 
 PROMPT = """You structure a flowchart. Reply with raw JSON only, no fences, no commentary.
 
-NODES (id, type, claim, quote) in source order:
+NODES (id, role, phase, claim, quote) in source order:
 <<<NODES>>>
 
 Return {"edges": [{"from": "<id>", "to": "<id>", "label": "", "quote": ""}], "unused": ["<id>"], "start": "<id>"}.
@@ -23,7 +23,15 @@ Rules:
 - Every labeled edge requires a non-empty "quote", copied verbatim from the node quotes above or the source; "" only for unlabeled edges.
 - If the source says to repeat or redo steps, add an edge back to the earlier node with a label that says so.
 - A step which repeats or loops back must have a label on each of its outgoing edges, with a quote for each.
+- An edge back to an earlier node, or a branch, is allowed only if the source text states it. The edge quote must contain the sentence that states it. Do not connect nodes with role output back into the cycle unless the source says so.
 - "unused" lists ids that are background or warnings, not part of the main procedure."""
+
+
+def node_kind(it):
+    # role branch == old decision; old "type" field still works when role is absent.
+    if it.get("role"):
+        return "decision" if it["role"] == "branch" else "step"
+    return "decision" if it.get("type") == "decision" else "step"
 
 
 def num(iid):
@@ -46,7 +54,9 @@ def apply_promotions(by_id, edges):
     """Ids of steps with >= 2 outgoing edges, all labeled and quoted."""
     promoted = set()
     for nid, it in by_id.items():
-        if it.get("type") == "step":
+        if it.get("role") == "takeaway":
+            continue  # terminal takeaways are never promoted
+        if node_kind(it) == "step":
             outs = [e for e in edges if isinstance(e, dict) and e.get("from") == nid]
             if len(outs) >= 2 and all(
                     isinstance(e.get("label"), str) and e.get("label").strip()
@@ -61,7 +71,7 @@ def validate(graph, by_id, source):
     errors = []
     kept = list(by_id)
     ids = set(kept)
-    decisions = [nid for nid, it in by_id.items() if it.get("type") == "decision"]
+    decisions = [nid for nid, it in by_id.items() if node_kind(it) == "decision"]
     edges = graph.get("edges")
     if not isinstance(edges, list):
         return ["edges is not a list"]
@@ -83,18 +93,29 @@ def validate(graph, by_id, source):
         if (a, b) in seen:
             errors.append(f"duplicate edge {a!r} -> {b!r}")
         seen.add((a, b))
-        lab = e.get("label") or ""
-        q = e.get("quote") or ""
+        lab = e.get("label")
+        q = e.get("quote")
+        if lab is None:
+            lab = ""
+        if q is None:
+            q = ""
         if not isinstance(lab, str):
             errors.append(f"edge {k}: non-string label {lab!r}")
+            lab = ""
         if not isinstance(q, str):
             errors.append(f"edge {k}: non-string quote")
-        elif lab.strip() and not q.strip():
+            q = ""
+        if lab.strip() and not q.strip():
             errors.append(f"edge {k} {a!r} -> {b!r}: labeled edge needs a quote")
         elif q.strip() and len(norm(q)) < 20:
             errors.append(f"edge {k} {a!r} -> {b!r}: quote too short to be evidence")
         elif q.strip() and not quote_in_source(q, source):
             errors.append(f"edge {k} {a!r} -> {b!r}: quote not found in source")
+        na, nb = num(a), num(b)
+        if na is not None and nb is not None and nb < na:
+            if not lab.strip() or len(norm(q)) < 20:
+                errors.append(f"edge {k} {a!r} -> {b!r}: loop-back needs a label and "
+                              "a 20+ char quote stating it")
     unused_raw = graph.get("unused", [])
     if not isinstance(unused_raw, list):
         errors.append("unused is not a list")
@@ -105,6 +126,9 @@ def validate(graph, by_id, source):
             errors.append(f"unknown unused id {u!r}")
         else:
             unused.add(u)
+    for nid, it in by_id.items():
+        if it.get("role") == "takeaway" and nid in unused:
+            errors.append(f"takeaway {nid!r} must be reachable, not unused")
     start = graph.get("start") or (kept[0] if kept else None)
     if not isinstance(start, str) or start not in ids:
         errors.append(f"unknown start id {start!r}")
@@ -128,6 +152,8 @@ def validate(graph, by_id, source):
     for d in decisions:
         if d in unused:
             continue  # unused decisions are exempt
+        if by_id[d].get("role") == "takeaway":
+            continue  # terminal takeaways need no outgoing edges
         outs = [e for e in edges if isinstance(e, dict) and e.get("from") == d]
         if len(outs) < 2:
             errors.append(f"decision {d!r} has {len(outs)} outgoing edges, need >= 2")
@@ -137,7 +163,7 @@ def validate(graph, by_id, source):
                 errors.append(f"decision {d!r} edge -> {e.get('to')!r} missing label")
     promoted = apply_promotions(by_id, edges)
     for nid, it in by_id.items():
-        if it.get("type") == "step":
+        if node_kind(it) == "step":
             outs = [e for e in edges if isinstance(e, dict) and e.get("from") == nid]
             if len(outs) >= 2 and nid not in promoted:
                 errors.append(f"step {nid!r} has {len(outs)} outgoing edges: hidden branch; "
@@ -163,6 +189,7 @@ def validate(graph, by_id, source):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--id", required=True, dest="source_id")
+    ap.add_argument("--feedback", default=None)
     args = ap.parse_args()
     sid = args.source_id
     try:
@@ -170,9 +197,12 @@ def main():
         source = Path("workspace", f"{sid}_source.md").read_text(encoding="utf-8")
     except FileNotFoundError as e:
         sys.exit(f"error: missing input: {e.filename}")
-    kept = [it for it in items if isinstance(it, dict) and it.get("quote_found")]
+    kept = [it for it in items if isinstance(it, dict) and it.get("quote_found")
+            and it.get("role") != "pearl"]
+    pearls = [it for it in items if isinstance(it, dict) and it.get("quote_found")
+              and it.get("role") == "pearl"]
     dropped = [it.get("id") for it in items if isinstance(it, dict) and not it.get("quote_found")]
-    print(f"kept {len(kept)}/{len(items)}, dropped {len(dropped)}: {dropped}")
+    print(f"kept {len(kept)}/{len(items)}, dropped {len(dropped)}: {dropped}, pearls: {len(pearls)}")
     if not kept:
         sys.exit("error: no usable items")
     by_id = {it["id"]: it for it in kept}
@@ -183,9 +213,15 @@ def main():
         sys.exit("error: MODEL_API_KEY missing in .env")
     client = OpenAI(base_url="https://api.meta.ai/v1", api_key=api_key)
 
-    nodes_txt = "\n".join(f"{it['id']} | {it.get('type')} | {it.get('claim')} | {it.get('quote')}"
-                           for it in kept)
+    nodes_txt = "\n".join(f"{it['id']} | {it.get('role') or it.get('type')} | {it.get('phase', '')} "
+                           f"| {it.get('claim')} | {it.get('quote')}" for it in kept)
     prompt = PROMPT.replace("<<<NODES>>>", nodes_txt)
+    if args.feedback:
+        fb = Path(args.feedback).read_text(encoding="utf-8")
+        prompt += ("\nA verifier found these edges unsupported by their quotes:\n" + fb +
+                   "\nEvery flagged edge must stay in the graph. For each one, either replace "
+                   "the quote with a passage from the source that actually supports the "
+                   "transition, or change the target.")
     graph, errors = None, []
     for attempt in (1, 2):
         try:
@@ -207,7 +243,7 @@ def main():
         print(f"attempt {attempt} failed validation with {len(errors)} errors; retrying")
         for e in errors:
             print(f"  - {e}")
-        prompt = (PROMPT.replace("<<<NODES>>>", nodes_txt)
+        prompt = (prompt
                  + "\nYour previous output failed validation:\n"
                  + "\n".join(f"- {e}" for e in errors)
                  + "\nFix every error and return raw JSON only.")
@@ -220,16 +256,29 @@ def main():
         edges.append({"from": e["from"], "to": e["to"], "label": e.get("label") or "",
                       "quote": q, "quote_found": None if not q.strip() else quote_in_source(q, source)})
     promoted = apply_promotions(by_id, graph["edges"])
+    attached = {}  # pearl details folded into the preceding non-pearl node
+    last = None
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        if it.get("role") == "pearl" and it.get("quote_found"):
+            if last is not None:
+                attached.setdefault(last, []).extend(it.get("details", []))
+        elif it["id"] in by_id:
+            last = it["id"]
     nodes = []
     for it in kept:
-        node = {"id": it["id"], "type": it.get("type"), "claim": it.get("claim"),
-                "quote": it.get("quote"), "quote_found": it.get("quote_found")}
+        node = {"id": it["id"], "type": it.get("type"), "role": it.get("role"),
+                "phase": it.get("phase"), "claim": it.get("claim"),
+                "quote": it.get("quote"), "quote_found": it.get("quote_found"),
+                "details": it.get("details", []) + attached.get(it["id"], [])}
         if it["id"] in promoted:
             node["type"] = "decision"
             node["promoted_from"] = "step"
             print(f"promoted {it['id']} step -> decision")
         nodes.append(node)
-    out = {"source_id": sid, "start": graph.get("start") or kept[0]["id"],
+    ctx = next((it["id"] for it in kept if it.get("role") == "context"), kept[0]["id"])
+    out = {"source_id": sid, "start": ctx,
            "nodes": nodes,
            "edges": edges, "unused": graph.get("unused", []), "dropped": dropped}
     Path("workspace", f"{sid}_graph.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
