@@ -1,0 +1,78 @@
+%% Hand-authored docs diagram. Pipeline CLAIM gates do not apply (no source text).
+flowchart LR
+    classDef startNode fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0c4a6e,font-weight:bold
+    classDef safetyNode fill:#fef2f2,stroke:#ef4444,stroke-width:2px,color:#991b1b
+    classDef decisionNode fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#0f172a
+    classDef targetDx fill:#ecfdf5,stroke:#10b981,stroke-width:3px,color:#065f46,font-weight:bold
+    classDef altDx fill:#f1f5f9,stroke:#94a3b8,stroke-width:1.5px,color:#334155
+    classDef dispoNode fill:#eff6ff,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    classDef section fill:#f3f4f6,stroke:#9ca3af,stroke-width:2px,color:#000,font-weight:bold;
+    subgraph IN["Inputs"]
+        U1(["<b>--url link</b><br/>• plus --id"]):::startNode
+        U2(["<b>File in input/</b><br/>• id from filename"]):::startNode
+        U3(["<b>--text</b><br/>• plus --id"]):::startNode
+        U4(["<b>Web UI Run box</b><br/>• id plus text or link"]):::startNode
+        U5(["<b>Assistant</b><br/>• drives skills by hand"]):::startNode
+    end
+    subgraph ORCH["orchestrator.py — no model call itself"]
+        O1(["<b>Route input</b><br/>• single file, --all loop<br/>• --text, --url"]):::altDx
+        O2{"Output exists?"}:::decisionNode
+        O3(["<b>Skip line</b><br/>• unless --force"]):::altDx
+        O4{"Over 50000 chars?"}:::decisionNode
+        O5(["<b>Refuse</b><br/>• wc -m hint<br/>• split plus retry"]):::altDx
+    end
+    subgraph DRAFT["Draft — Meta Muse calls"]
+        I(["<b>ingest.py</b><br/>• Link or file to clean markdown<br/>• Provenance incl. Wikipedia oldid<br/>• --text skips ingest<br/>• No model call"]):::altDx
+        W(["<b>writer.py — Meta Muse call</b><br/>• Classifies type in-call<br/>• Cards plus profile plus style<br/>• Every bullet gets a CLAIM line<br/>• One chart, no splitting"]):::altDx
+    end
+    subgraph GATES["Gates — no model calls"]
+        J(["<b>inject_refs.py</b><br/>• Stamps REFS license block"]):::altDx
+        V(["<b>validate_mmd.py</b><br/>• Quotes verbatim in source<br/>• Bullet and CLAIM counts match<br/>• Diamonds, exits, reachability<br/>• Label chars, numbers, hedges"]):::altDx
+        R{"1. Valid?"}:::decisionNode
+        L(["<b>Repair</b><br/>• local_repair fixes near-verbatim<br/>• Writer gets one fix round<br/>• Residuals stay red"]):::altDx
+    end
+    subgraph VER["--verify opt-in — Meta Muse call"]
+        VY{"2. --verify?"}:::decisionNode
+        VF(["<b>verifier.py</b><br/>• Fresh VERIFY_CARD read<br/>• Judges meaning, not wording<br/>• One fix round for failures"]):::altDx
+    end
+    subgraph OUTP["Outputs"]
+        OUT(["<b>output/id.mmd</b><br/>• Atomic write plus provenance<br/>• output/id_report.md, type first line<br/>• Stale splits cleaned"]):::dispoNode
+    end
+    subgraph AG["Agentic path — same cards, tools, gates"]
+        SK(["<b>skills/flowcheck-chart</b><br/>• Assistant builds by hand<br/>• ingest, draft, inject<br/>• validate, repair, publish<br/>• revises includes and excludes"]):::altDx
+        SV(["<b>skills/flowcheck-verify</b><br/>• Read-only audit by hand<br/>• Source plus chart only"]):::altDx
+    end
+    subgraph UI["Web UI — server.py spawns pipeline"]
+        UI1(["<b>Gallery plus viewer</b><br/>• mermaid render, pan, zoom<br/>• type, N claims, M flagged"]):::dispoNode
+        UI2(["<b>Evidence drawer</b><br/>• Click node, see quotes<br/>• Verified or flagged badge"]):::dispoNode
+    end
+    subgraph DEV["Dev-time guard — no key needed"]
+        T(["<b>tests/ suite</b><br/>• Guards common, validator, server<br/>• 23 checks, offline"]):::section
+        DF(["<b>inject_defect.py</b><br/>• Swaps two CLAIM quotes<br/>• Validator passes, verifier fails"]):::section
+    end
+    U1 --> O1
+    U2 --> O1
+    U3 --> O1
+    U4 --> O1
+    O1 --> O2
+    O2 -->|"Yes"| O3
+    O2 -->|"No"| O4
+    O4 -->|"Yes"| O5
+    O4 -->|"No"| I
+    I --> W
+    W --> J
+    J --> V
+    V --> R
+    R -->|"FAIL"| L
+    L -->|"re-check"| V
+    R -->|"PASS"| VY
+    VY -->|"Yes"| VF
+    VF --> OUT
+    VY -->|"No"| OUT
+    U5 --> SK
+    SK --> OUT
+    U5 --> SV
+    DF -.->|"demo"| V
+    OUT --> UI1
+    UI1 --> UI2
+    T -.->|"guards"| V

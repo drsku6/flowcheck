@@ -14,6 +14,11 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def slugify(name):
+    """Same id rule as the orchestrator: lowercase, non-alphanumerics to '-'."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 CLAIM_RE = re.compile(r"%% CLAIM C\d+ \| (.*) \| (\w+)\s*$")
 STATIC = {"app.js": "text/javascript", "style.css": "text/css",
           "vendor/mermaid.min.js": "text/javascript",
@@ -30,13 +35,24 @@ def chart_stats(text):
     return claims, flagged
 
 
+def parse_report(text):
+    """Chart type from the report's first `type: X` line, if any."""
+    for ln in text.splitlines():
+        if ln.startswith("type:"):
+            return ln.split(":", 1)[1].strip() or None
+    return None
+
+
 def list_charts():
     out = []
     for p in sorted((ROOT / "output").glob("*.mmd")):
         if p.name.endswith("_report.md"):
             continue
         claims, flagged = chart_stats(p.read_text(encoding="utf-8"))
-        out.append({"id": p.stem, "claims": claims, "flagged": flagged})
+        rep = ROOT / "output" / f"{p.stem}_report.md"
+        ctype = parse_report(rep.read_text(encoding="utf-8")) if rep.exists() else None
+        out.append({"id": p.stem, "claims": claims, "flagged": flagged,
+                    "type": ctype})
     return out
 
 
@@ -103,13 +119,15 @@ class H(BaseHTTPRequestHandler):
             if not ID_RE.match(rid):
                 self._json(400, {"error": "bad id"})
                 return
+            rid = slugify(rid)
             mmd = ROOT / "output" / f"{rid}.mmd"
             if not mmd.exists():
                 self._json(404, {"error": "no such chart"})
                 return
             rep = ROOT / "output" / f"{rid}_report.md"
+            rep_text = rep.read_text(encoding="utf-8") if rep.exists() else ""
             self._json(200, {"mmd": mmd.read_text(encoding="utf-8"),
-                             "report": rep.read_text(encoding="utf-8") if rep.exists() else ""})
+                             "report": rep_text, "type": parse_report(rep_text)})
         elif u.path == "/api/status":
             job = _jobs.get(parse_qs(u.query).get("job", [""])[0])
             if job is None:
@@ -140,6 +158,10 @@ class H(BaseHTTPRequestHandler):
         text, url = d.get("text", ""), d.get("url", "")
         if not ID_RE.match(rid) or (not text and not url):
             self._json(400, {"error": "need id plus text or url"})
+            return
+        rid = slugify(rid)
+        if not rid:
+            self._json(400, {"error": "bad id"})
             return
         if url and not url.startswith(("http://", "https://")):
             self._json(400, {"error": "url must be http(s)"})

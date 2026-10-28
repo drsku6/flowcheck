@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common import norm, quote_in_source
 
-BANNED = ("%", "#", ";", '"')
+BANNED = ("%", "/", "#", ";", '"')
 ANAPHOR_RE = re.compile(
     r"^(these|this|it|they|them|such|similarly|those|both|neither|its|their)\b", re.I)
 NUM_RE = re.compile(r"\d+(?:[.,]\d+)*")
@@ -75,8 +75,9 @@ def main():
     for q, nid, ln in claims:
         by_node.setdefault(nid, []).append((q, ln))
     for nid, n in nodes.items():  # label chars + bullet coverage
+        text = strip_tags(n["label"])  # tags like </b> and <br/> carry "/" legally
         for ch in BANNED:
-            if ch in n["label"]:
+            if ch in text:
                 defects.append(f"node {nid}: label contains {ch!r}")
                 break
         bullets = n["label"].count("• ")

@@ -46,7 +46,7 @@ async function loadGallery(selectId) {
   for (const c of list) {
     const o = document.createElement("option");
     o.value = c.id;
-    o.textContent = `${c.id} (${c.claims} claims${c.flagged ? `, ${c.flagged} flagged` : ""})`;
+    o.textContent = `${c.id} (${c.type ? c.type + " · " : ""}${c.claims} claims${c.flagged ? `, ${c.flagged} flagged` : ""})`;
     sel.appendChild(o);
   }
   galleryIdx = selectId ? galleryIds.indexOf(selectId) : -1;
@@ -93,9 +93,14 @@ function openDrawer(nid) {
 }
 function closeDrawer() { $("drawer").hidden = true; }
 
-function updateFooter(mmd) {
+function updateFooter(mmd, report) {
   const n = Object.values(claims).reduce((a, l) => a + l.length, 0);
   $("counts").textContent = `${n} claims · ${flaggedSet.size} flagged`;
+  let t = null;
+  for (const ln of String(report || "").split("\n")) {
+    if (ln.startsWith("type:")) { t = ln.slice(5).trim() || null; break; }
+  }
+  $("ctype").textContent = t || "";
   const m = mmd.match(/^REFS\["(.*)"\]:::/m);
   $("refs").textContent = "";
   if (m) {
@@ -136,7 +141,7 @@ async function loadChart(id) {
   closeDrawer(); showError("");
   const r = await fetch("/api/chart?id=" + encodeURIComponent(id));
   if (!r.ok) { showError("chart not found: " + id); return; }
-  const { mmd } = await r.json();
+  const { mmd, report } = await r.json();
   parseChart(mmd);
   if (pz) { pz.destroy(); pz = null; }
   try {
@@ -177,7 +182,7 @@ async function loadChart(id) {
   }
   $("dock").hidden = false;
   updateZoom();
-  updateFooter(mmd);
+  updateFooter(mmd, report);
 }
 
 async function poll(job) {
@@ -228,7 +233,7 @@ $("next").addEventListener("click", () => step(1));
 $("run").addEventListener("click", async () => {
   const id = $("runid").value.trim(), src = $("src").value.trim();
   if (!id || !src) { $("runmsg").textContent = "need id + text/url"; return; }
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) { $("runmsg").textContent = "bad id"; return; }
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) { $("runmsg").textContent = "bad id"; return; }
   const payload = { id, [src.startsWith("http") ? "url" : "text"]: src };
   const r = await fetch("/api/run", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload) });
   const d = await r.json();
