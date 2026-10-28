@@ -18,6 +18,11 @@ MAX_URL_BYTES = 5 * 1024 * 1024
 MAX_FILE_BYTES = 30 * 1024 * 1024
 MAX_PAGES = 300
 SKIP_TAGS = {"script", "style", "nav", "header", "footer"}
+WIKI_SKIP_CLASSES = {"reference", "mw-editsection", "references", "reflist",
+                     "navbox", "hatnote", "printfooter", "catlinks", "noprint",
+                     "Inline-Template", "ambox"}
+WIKI_STOP_HEADS = {"References", "Notes", "Further reading", "External links",
+                   "See also", "Bibliography"}
 BLOCK_TAGS = {"p", "div", "li", "br", "h1", "h2", "h3", "h4", "h5", "h6",
               "tr", "td", "th", "section", "article", "ul", "ol", "table",
               "blockquote"}
@@ -39,18 +44,26 @@ def fail(msg):
 
 
 class BodyText(HTMLParser):
-    def __init__(self):
+    def __init__(self, wiki=False):
         super().__init__()
         self.skip_depth = 0
         self.in_body = False
         self.chunks = []  # finished lines
         self.line = []  # inline fragments of the current line
+        self.wiki = wiki
+        self.wiki_stack = []  # per-open-element bad-class flags (depth like SKIP_TAGS)
+        self.stopped = False  # set once a stop heading is seen
+        self._h2buf = None  # current h2 text while inside one
 
     def _flush(self):
         text = re.sub(r"\s+", " ", "".join(self.line)).strip()
-        if text:
-            self.chunks.append(text)
         self.line = []
+        if not text:
+            return
+        if self.wiki and (text == "Search" or "Add topic" in text
+                          or "Webarchive template wayback links" in text):
+            return
+        self.chunks.append(text)
 
     def lines(self):  # flush any trailing unclosed line
         self._flush()
@@ -63,20 +76,42 @@ class BodyText(HTMLParser):
             self.skip_depth += 1
         elif tag in BLOCK_TAGS and self.in_body and self.skip_depth == 0:
             self._flush()
+        if self.wiki and tag not in ("br", "img", "hr", "meta", "link", "input"):
+            bad = False
+            for k, v in attrs:
+                if k == "class" and WIKI_SKIP_CLASSES.intersection(v.split()):
+                    bad = True
+                    break
+            self.wiki_stack.append(bad)
+            if tag == "h2" and not self.stopped:
+                self._h2buf = []
 
     def handle_endtag(self, tag):
+        if self.wiki and self.wiki_stack:
+            self.wiki_stack.pop()
         if tag == "body":
             self._flush()
             self.in_body = False
         if tag in SKIP_TAGS:
             self.skip_depth = max(0, self.skip_depth - 1)
         elif tag in BLOCK_TAGS and self.in_body and self.skip_depth == 0:
+            if self.wiki and tag == "h2" and self._h2buf is not None:
+                head = re.sub(r"\s+", " ", "".join(self._h2buf)).strip()
+                self._h2buf = None
+                if head in WIKI_STOP_HEADS:
+                    self.stopped = True
+                    self.line = []  # drop the stop heading itself
+                    return
             self._flush()
 
     def handle_data(self, data):
         # Raw fragments: spacing between inline tags survives the join.
         if self.in_body and self.skip_depth == 0 and data.strip():
+            if self.wiki and (self.stopped or any(self.wiki_stack)):
+                return
             self.line.append(data)
+            if self._h2buf is not None:
+                self._h2buf.append(data)
 
 
 def title_of(html):
@@ -84,8 +119,8 @@ def title_of(html):
     return re.sub(r"\s+", " ", m.group(1)).strip() if m else "untitled"
 
 
-def html_to_text(html):
-    p = BodyText()
+def html_to_text(html, wiki=False):
+    p = BodyText(wiki=wiki)
     p.feed(html)
     text = "\n".join(p.lines())
     if len(text.strip()) < 200:  # likely JS-rendered, no usable text
@@ -229,7 +264,7 @@ def pub_to_pdf(path):
     return outs[0], tmp
 
 
-UA = "flowcheck/0.1 (hackathon research tool)"
+UA = "flowcheck-bot/0.1 (https://github.com/drsku6/flowcheck; hackathon research tool)"
 
 
 def fetch_url(url):
@@ -274,7 +309,7 @@ def main():
                 url_or_null = url
             else:
                 html = raw.decode("utf-8", errors="replace")
-                text, title, url_or_null = html_to_text(html), title_of(html), url
+                text, title, url_or_null = html_to_text(html, wiki=("wikipedia.org" in url)), title_of(html), url
                 pages = 1  # one fetched page; local txt/html keep pages=None
                 rev = re.search(r'"wg(?:Cur)?RevisionId":(\d+)', html)
                 if rev:

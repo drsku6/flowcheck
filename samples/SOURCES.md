@@ -10,3 +10,5 @@
 | data/tests/nhlbi-guide.pdf (local copy) | URL not recorded | National Institutes of Health | US government (NIH), no copyright notice | 2026-10-27 |
 | (URL only) USA.gov, lost or stolen passport | https://www.usa.gov/lost-stolen-passport | USAGov | US government, public domain | 2026-10-27 |
 | data/legal/sample.txt | https://www.uspto.gov/trademarks/trademark-timelines/section-1a-timeline-application-based-use-commerce | U.S. Patent and Trademark Office | US government work, public domain | 2026-10-27 |
+| (URL only) Wikipedia, Calvin cycle | https://en.wikipedia.org/w/index.php?oldid=1382160955 | Wikipedia contributors | CC BY-SA 4.0, text only, derived output is share-alike | 2026-10-27 |
+| (URL only) Wikipedia, Photosystem (redirected from Light-dependent reactions) | https://en.wikipedia.org/w/index.php?oldid=1376828125 | Wikipedia contributors | CC BY-SA 4.0, text only, derived output is share-alike | 2026-10-27 |
