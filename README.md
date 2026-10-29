@@ -51,6 +51,17 @@ revises the open chart from instructions (unsupported additions are refused).
 Both side panels collapse to slim rails. Different charts build in parallel;
 rebuilding the same chart waits for its own run to finish.
 
+To serve the same UI publicly, deploy with Modal (from the repo root with
+`pip install -r requirements.txt` done once):
+
+```sh
+modal setup
+modal secret create flowcheck-secrets MODEL_API_KEY=<key>
+modal volume create flowcheck-data
+modal serve modal_app.py    # preview URL
+modal deploy modal_app.py   # public URL
+```
+
 ## Classroom use
 
 Setup happens once on one machine (a teacher's or IT's): follow Setup above, then start the server and open `http://127.0.0.1:8000` in a browser. Only that machine needs the API key. From here no coding is required:
@@ -83,8 +94,11 @@ meaning-check, `--force` to rebuild, `--all` for every file in `input/`.
 Agentic path — an assistant drives. Ask any AI assistant working in this repo
 to chart a text and it performs `skills/flowcheck-chart` by hand: stage the
 source, draft from the cards, inject refs, validate, repair once, publish —
-or audit read-only via `skills/flowcheck-verify`. The orchestrator program
-never starts. Same cards, tools, gates, and red-flag visibility either way.
+or audit read-only via `skills/flowcheck-verify`. Name the skill explicitly
+(e.g. “Use skills/flowcheck-chart to chart …”): this repo has no
+`.agents/skills/` loader directory, so assistants will not auto-load it. The
+orchestrator program never starts. Same cards, tools, gates, and red-flag
+visibility either way.
 
 ## Models
 
