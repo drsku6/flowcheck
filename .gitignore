@@ -4,10 +4,7 @@ data/
 __pycache__/
 workspace/
 input/*
-!input/calvin-cycle.url
 output/*
 !output/.gitkeep
-!output/calvin-cycle.mmd
-!output/calvin-cycle_report.md
 docs/demo-script.md
 docs/judging-punchlist.md

@@ -42,6 +42,14 @@ Prefer a viewer with pan and zoom? Start the bundled web UI:
 
 It shows the `output/` gallery, runs the same orchestrator as a subprocess from pasted text or a URL, opens an evidence drawer with the verbatim quotes behind any clicked node, and revises charts from chat instructions (unsupported additions are refused).
 
+## Classroom use
+
+Setup happens once on one machine (a teacher's or IT's): follow Setup above, then start the server and open `http://127.0.0.1:8000` in a browser. Only that machine needs the API key. From here no coding is required:
+1. In Chat, type a short id, paste lesson text or a link, Send. About a minute later the chart renders with its type, claim count, and flagged count.
+2. Click any node to see its source sentences. Red nodes with ⚠ are unverified — check them against the source before teaching them.
+3. In the same thread, ask for changes ("drop node X", "add Y"). Additions need a source sentence or come back refused.
+4. Share `output/<id>.mmd` plus its `_report.md`: project them, print them, or open the `.mmd` in mermaid.live.
+
 Input notes: plain `.txt` is safest; scanned PDFs are rejected; Wikipedia pages are cleaned automatically. Keep sources under 50,000 characters (`wc -m` to check); split longer texts and run each part separately.
 
 ## How it works
