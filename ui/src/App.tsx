@@ -314,7 +314,7 @@ function RunTab({ src, setSrc, runId, setRunId, mode, setMode, runMsg, running, 
             style={mode === m
               ? { background: "var(--panel)", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.15)" }
               : { color: "var(--muted)" }}
-            title={m === "draft" ? "One model call, ~1 min, defects stay flagged" : "Draft plus repair round, ~3 min"}>
+            title={m === "draft" ? "One model call; defects stay flagged" : "Adds a repair round; slower, not the --verify audit"}>
             {m}
           </button>
         ))}
@@ -332,7 +332,8 @@ function RunTab({ src, setSrc, runId, setRunId, mode, setMode, runMsg, running, 
       </button>
       {runMsg && <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>{runMsg}</p>}
       <p className="mt-4 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-        About a minute per chart in Draft mode. Red nodes failed verification — check them against the source.
+        Drafts usually land in under a minute on short texts. Red nodes failed the
+        mechanical checks — check them against the source.
       </p>
     </div>
   );

@@ -100,6 +100,19 @@ class TestValidator(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("node A: label contains '/'", r.stdout)
 
+    def test_sourced_intensity_no_warn(self):
+        source = ("Boil water in a kettle.\n"
+                  "Severe heat cracks the pot.\n")
+        chart = ("flowchart LR\n"
+                 "A([\"<b>Boil</b><br/>• Severe heat\"]):::altDx\n"
+                 "B([\"<b>Crack</b><br/>• Cracked pot\"]):::altDx\n"
+                 "A --> B\n"
+                 "%% CLAIM C1 | Boil water in a kettle. | A\n"
+                 "%% CLAIM C2 | Severe heat cracks the pot. | B\n")
+        r = run_chart(chart, source=source)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertNotIn("intensity words", r.stdout)
+
     def test_heading_boundary_numeric_claim(self):
         source = ("# Title\n\n## Background\n\n"
                   "Assessment of visual acuity depends on the optotypes used for measurement.\n"

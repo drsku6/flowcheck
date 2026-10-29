@@ -20,9 +20,6 @@ fresh for it. Third-party pieces in use:
 - python-dotenv 1.2.4, BSD-3-Clause — reads `MODEL_API_KEY` from `.env`.
 - pdfplumber 0.11.10, MIT — github.com/jsvine/pdfplumber. PDF text/table
   extraction in `ingest.py`.
-- Modal 1.6.3, Apache-2.0 — modal.com. Deploy-only client used by
-  `modal_app.py`; not needed for local runs.
-
 ## Source data (never committed; see README Licences)
 
 - Wikipedia text: CC BY-SA 4.0, attribution required, derived charts share-alike.

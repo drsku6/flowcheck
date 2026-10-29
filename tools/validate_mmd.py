@@ -200,7 +200,7 @@ def main():
         if re.search(rf"\b{h}\b", low_labels) and not re.search(rf"\b{h}\b", low_src):
             defects.append(f"chart adds certainty word not in source: {h}")
     inten = sorted(h for h in HEDGE_WARN
-                   if re.search(rf"\b{h}\b", low_labels) and not re.search(rf"\bh{h}\b", low_src))
+                   if re.search(rf"\b{h}\b", low_labels) and not re.search(rf"\b{h}\b", low_src))
     if inten:
         warns.append(f"intensity words not in source: {inten}")
     src_words = {stem(w) for w in WORD_RE.findall(source) if len(w) >= 7}

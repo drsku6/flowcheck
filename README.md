@@ -51,21 +51,10 @@ revises the open chart from instructions (unsupported additions are refused).
 Both side panels collapse to slim rails. Different charts build in parallel;
 rebuilding the same chart waits for its own run to finish.
 
-To serve the same UI publicly, deploy with Modal (from the repo root with
-`pip install -r requirements.txt` done once):
-
-```sh
-modal setup
-modal secret create flowcheck-secrets MODEL_API_KEY=<key>
-modal volume create flowcheck-data
-modal serve modal_app.py    # preview URL
-modal deploy modal_app.py   # public URL
-```
-
 ## Classroom use
 
 Setup happens once on one machine (a teacher's or IT's): follow Setup above, then start the server and open `http://127.0.0.1:8000` in a browser. Only that machine needs the API key. From here no coding is required:
-1. In the New MMD tab, type a short id, paste lesson text or a link, pick Draft or Verified, Build. About a minute later the chart renders; the footer shows its type, claim count, and flagged count.
+1. In the New MMD tab, type a short id, paste lesson text or a link, pick Draft or Verified, Build. A minute or more later, depending on text length, the chart renders; the footer shows its type, claim count, and flagged count.
 2. Click a branch root to collapse or expand it. Red nodes with ⚠ are unverified — check them against the source before teaching them.
 3. In the Chat tab, ask for changes ("drop node X", "add Y"). Additions need a source sentence or come back refused.
 4. Share `output/<id>.mmd` plus its `_report.md`: project them, print them, or open the `.mmd` in mermaid.live.

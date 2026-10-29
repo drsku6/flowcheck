@@ -26,7 +26,6 @@ Model everywhere below is Meta Muse (`muse-spark-1.2` via the Meta Model API).
 | `skills/flowcheck-chart/SKILL.md` | Agentic chart-building role for AI assistants | executed by Meta Muse |
 | `skills/flowcheck-verify/SKILL.md` | Agentic read-only audit role for AI assistants | executed by Meta Muse |
 | `server.py` | Web UI backend serving `ui/dist/`; `/api/chat` routes build vs revise; Draft/Verified mode; per-chart parallel jobs with live logs; UI builds force re-run | no (spawns pipeline) |
-| `modal_app.py` | Modal deploy: image, output volume, secrets, `web_server` on the UI | no (ships the app) |
 | `ui/index.html`, `ui/src/main.tsx` | Vite entry, theme bootstrap, React root | no |
 | `ui/src/App.tsx` | Gallery sidebar, New MMD/Chat tabs, collapsible panels, footer | no |
 | `ui/src/Viewer.tsx` | Mermaid render, pan/zoom dock, click-to-collapse branches | no |
@@ -37,7 +36,7 @@ Model everywhere below is Meta Muse (`muse-spark-1.2` via the Meta Model API).
 | `input/` | Drop inputs here; everything inside stays local-only | no |
 | `output/` | Charts + reports land here; everything inside stays local-only | product of Meta Muse calls |
 | `output/.gitkeep` | Keeps empty `output/` committable | no |
-| `requirements.txt` | Pinned Python deps (openai, dotenv, pdfplumber, modal for deploy) | no |
+| `requirements.txt` | Pinned Python deps (openai, dotenv, pdfplumber) | no |
 | `.env.example` | Template for `MODEL_API_KEY` | no |
 | `.gitignore` | Keeps secrets, scratch, inputs, outputs, venv out of git | no |
 | `LICENSE` | MIT licence of this repo | no |

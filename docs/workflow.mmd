@@ -47,9 +47,6 @@ flowchart LR
         UI2(["<b>New MMD and Chat tabs</b><br/>• Draft or Verified builds<br/>• Chat revises open chart<br/>• Panels collapse to rails"]):::dispoNode
         RV(["<b>Jobs via /api</b><br/>• Per-chart parallel jobs<br/>• Live log streaming<br/>• Refusals reported, republish"]):::dispoNode
     end
-    subgraph DEP["Deploy"]
-        MO(["<b>Modal via modal_app.py</b><br/>• Image plus volume plus secret<br/>• Serves the same UI"]):::dispoNode
-    end
     subgraph DEV["Dev-time guard — no key needed"]
         T(["<b>tests/ suite</b><br/>• Gates, server, draft, locks<br/>• 41 checks, offline"]):::section
         DF(["<b>inject_defect.py</b><br/>• Swaps two CLAIM quotes<br/>• Validator passes, verifier fails"]):::section
@@ -60,10 +57,10 @@ flowchart LR
     U4 --> O1
     O1 --> O2
     O2 -->|"Yes"| O3
-    O2 -->|"No"| O4
+    O2 -->|"No"| I
+    I --> O4
     O4 -->|"Yes"| O5
-    O4 -->|"No"| I
-    I --> W
+    O4 -->|"No"| W
     W --> J
     J --> V
     V --> R
@@ -80,6 +77,5 @@ flowchart LR
     OUT --> UI1
     UI1 --> UI2
     UI1 --> RV
-    UI1 --> MO
     RV -->|"republish"| OUT
     T -.->|"guards"| V
