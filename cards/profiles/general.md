@@ -13,7 +13,7 @@ Boards grammar applies unchanged: frame, fork, route, conclude — each fact onc
 flowchart LR
 n1(["<b>Topic</b><br/>• Setting<br/>• Why it matters"]):::startNode
 n2{"1. Which case?"}:::decisionNode
-n3(["<b>Case A</b><br/>• Key fact<br/>• Key number")]:::altDx
+n3(["<b>Case A</b><br/>• Key fact<br/>• Key number"]):::altDx
 n4(["<b>Synthesis</b><br/>• One line"]):::dispoNode
 n1 --> n2
 n2 -->|"First case"| n3
