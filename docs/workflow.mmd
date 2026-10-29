@@ -11,29 +11,29 @@ flowchart LR
         U1(["<b>--url link</b><br/>• plus --id"]):::startNode
         U2(["<b>File in input/</b><br/>• id from filename"]):::startNode
         U3(["<b>--text</b><br/>• plus --id"]):::startNode
-        U4(["<b>Web UI Run box</b><br/>• id plus text or link"]):::startNode
+        U4(["<b>Web UI New MMD tab</b><br/>• id plus text or link<br/>• Draft or Verified toggle"]):::startNode
         U5(["<b>Assistant</b><br/>• drives skills by hand"]):::startNode
     end
     subgraph ORCH["orchestrator.py — program drives"]
         O1(["<b>Route input</b><br/>• single file, --all loop<br/>• --text, --url"]):::altDx
         O2{"Output exists?"}:::decisionNode
-        O3(["<b>Skip line</b><br/>• unless --force"]):::altDx
+        O3(["<b>Skip line</b><br/>• CLI skips unless --force<br/>• UI always re-runs"]):::altDx
         O4{"Over 50000 chars?"}:::decisionNode
         O5(["<b>Refuse</b><br/>• wc -m hint<br/>• split plus retry"]):::altDx
     end
     subgraph DRAFT["Draft — Meta Muse calls"]
         I(["<b>ingest.py</b><br/>• Link or file to clean markdown<br/>• Provenance incl. Wikipedia oldid<br/>• --text skips ingest<br/>• No model call"]):::altDx
-        W(["<b>writer.py — Meta Muse call</b><br/>• Classifies type in-call<br/>• Cards plus profile plus style<br/>• Every bullet gets a CLAIM line<br/>• One chart, no splitting"]):::altDx
+        W(["<b>writer.py — model call</b><br/>• Drafts on muse-spark-1.2<br/>• Classifies type in-call<br/>• Cards plus profile plus style<br/>• Streams progress lines<br/>• Every bullet gets a CLAIM line<br/>• One chart, no splitting"]):::altDx
     end
     subgraph GATES["Gates — no model calls"]
         J(["<b>inject_refs.py</b><br/>• Stamps REFS license block"]):::altDx
-        V(["<b>validate_mmd.py</b><br/>• Quotes verbatim in source<br/>• Bullet and CLAIM counts match<br/>• Diamonds, exits, reachability<br/>• Label chars, numbers, hedges"]):::altDx
+        V(["<b>validate_mmd.py</b><br/>• Quotes verbatim in source<br/>• Bullet and CLAIM counts match<br/>• Diamonds, exits, reachability<br/>• Label chars, numbers, hedges<br/>• Linear charts warn, never fail"]):::altDx
         R{"1. Valid?"}:::decisionNode
-        L(["<b>Repair</b><br/>• local_repair fixes near-verbatim<br/>• Writer gets one fix round<br/>• Residuals stay red"]):::altDx
+        L(["<b>Repair</b><br/>• Skipped in --draft mode<br/>• local_repair fixes near-verbatim<br/>• Writer 1.2 gets one fix round<br/>• Residuals stay red"]):::altDx
     end
     subgraph VER["--verify opt-in — Meta Muse call"]
         VY{"2. --verify?"}:::decisionNode
-        VF(["<b>verifier.py</b><br/>• Fresh VERIFY_CARD read<br/>• Judges meaning, not wording<br/>• One fix round for failures"]):::altDx
+        VF(["<b>verifier.py on 1.2</b><br/>• Fresh VERIFY_CARD read<br/>• Judges meaning, not wording<br/>• One fix round for failures"]):::altDx
     end
     subgraph OUTP["Outputs"]
         OUT(["<b>output/id.mmd</b><br/>• Atomic write plus provenance<br/>• output/id_report.md, type first line<br/>• Stale splits cleaned"]):::dispoNode
@@ -43,12 +43,15 @@ flowchart LR
         SV(["<b>skills/flowcheck-verify</b><br/>• Read-only audit by hand<br/>• Source plus chart only"]):::altDx
     end
     subgraph UI["Web UI — server.py spawns pipeline"]
-        UI1(["<b>Gallery plus viewer</b><br/>• mermaid render, pan, zoom<br/>• type, N claims, M flagged"]):::dispoNode
-        UI2(["<b>Evidence drawer</b><br/>• Click node, see quotes<br/>• Verified or flagged badge"]):::dispoNode
-        RV(["<b>Chat panel via /api/chat</b><br/>• Fresh text builds, plain text revises<br/>• Muse drafts or revises, gates re-check<br/>• Refusals reported, republish"]):::dispoNode
+        UI1(["<b>Gallery plus viewer</b><br/>• mermaid render, pan, zoom<br/>• Click branch to collapse<br/>• type, N claims, M flagged"]):::dispoNode
+        UI2(["<b>New MMD and Chat tabs</b><br/>• Draft or Verified builds<br/>• Chat revises open chart<br/>• Panels collapse to rails"]):::dispoNode
+        RV(["<b>Jobs via /api</b><br/>• Per-chart parallel jobs<br/>• Live log streaming<br/>• Refusals reported, republish"]):::dispoNode
+    end
+    subgraph DEP["Deploy"]
+        MO(["<b>Modal via modal_app.py</b><br/>• Image plus volume plus secret<br/>• Serves the same UI"]):::dispoNode
     end
     subgraph DEV["Dev-time guard — no key needed"]
-        T(["<b>tests/ suite</b><br/>• Guards gates, server, revise<br/>• 33 checks, offline"]):::section
+        T(["<b>tests/ suite</b><br/>• Gates, server, draft, locks<br/>• 41 checks, offline"]):::section
         DF(["<b>inject_defect.py</b><br/>• Swaps two CLAIM quotes<br/>• Validator passes, verifier fails"]):::section
     end
     U1 --> O1
@@ -77,5 +80,6 @@ flowchart LR
     OUT --> UI1
     UI1 --> UI2
     UI1 --> RV
+    UI1 --> MO
     RV -->|"republish"| OUT
     T -.->|"guards"| V

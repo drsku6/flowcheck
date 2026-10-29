@@ -1,6 +1,7 @@
-"""flowcheck web UI: serves ui/ and a small JSON API over the pipeline.
+"""flowcheck web UI: serves the built ui/dist/ and a small JSON API over the pipeline.
 
 Run: .venv/bin/python server.py [port]   (default port 8000)
+Build the UI first: cd ui && npm install && npm run build
 """
 import datetime
 import json

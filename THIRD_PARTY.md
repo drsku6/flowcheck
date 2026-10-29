@@ -3,16 +3,15 @@
 Everything else in this repo (pipeline, cards, tools, server, UI) was written
 fresh for it. Third-party pieces in use:
 
-## Vendored JavaScript (shipped in `ui/vendor/`)
+## JavaScript dependencies (`ui/package.json`, installed not vendored)
 
-Full license texts: `ui/vendor/LICENSES.md`.
-
-- Mermaid 10.9.1 (UMD build), MIT — Copyright (c) 2014–2022 Knut Sveidqvist.
-  Source: github.com/mermaid-js/mermaid at tag v10.9.1. Renders the flowcharts;
-  the bundle also includes third-party code (KaTeX 0.16.9 and others), each
-  under its own permissive licence.
-- svg-pan-zoom 3.6.1, BSD-2-Clause — Copyright 2009–2010 Andrea Leofreddi.
-  Source: github.com/bumbu/svg-pan-zoom. Pan/zoom interaction on the chart.
+- Mermaid 11, MIT — github.com/mermaid-js/mermaid. Renders the flowcharts.
+- svg-pan-zoom 3.6, BSD-2-Clause — github.com/bumbu/svg-pan-zoom.
+  Pan/zoom interaction on the chart.
+- React 19 + React DOM 19, MIT — react.dev. UI components and rendering.
+- Tailwind CSS 4, MIT — tailwindcss.com. Utility styling (built at
+  `npm run build` time; no runtime code ships beyond generated CSS).
+- Vite 6 (build tool only, not shipped), MIT — vite.dev.
 
 ## Python dependencies (`requirements.txt`, installed not vendored)
 
