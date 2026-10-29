@@ -14,7 +14,7 @@ flowchart LR
         U4(["<b>Web UI Run box</b><br/>• id plus text or link"]):::startNode
         U5(["<b>Assistant</b><br/>• drives skills by hand"]):::startNode
     end
-    subgraph ORCH["orchestrator.py — no model call itself"]
+    subgraph ORCH["orchestrator.py — program drives"]
         O1(["<b>Route input</b><br/>• single file, --all loop<br/>• --text, --url"]):::altDx
         O2{"Output exists?"}:::decisionNode
         O3(["<b>Skip line</b><br/>• unless --force"]):::altDx
@@ -38,7 +38,7 @@ flowchart LR
     subgraph OUTP["Outputs"]
         OUT(["<b>output/id.mmd</b><br/>• Atomic write plus provenance<br/>• output/id_report.md, type first line<br/>• Stale splits cleaned"]):::dispoNode
     end
-    subgraph AG["Agentic path — same cards, tools, gates"]
+    subgraph AG["Agentic path — assistant drives, same cards, tools, gates"]
         SK(["<b>skills/flowcheck-chart</b><br/>• Assistant builds by hand<br/>• ingest, draft, inject<br/>• validate, repair, publish<br/>• revises includes and excludes"]):::altDx
         SV(["<b>skills/flowcheck-verify</b><br/>• Read-only audit by hand<br/>• Source plus chart only"]):::altDx
     end

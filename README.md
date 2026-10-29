@@ -62,7 +62,7 @@ Every model call goes to Muse Spark; the repo supplies the cards, the mechanical
 - A validator checks every CLAIM quote is verbatim in the source and well-formed (complete sentence, no dangling anaphor, starts at a sentence boundary), bullet and CLAIM counts match per node, numbers in labels come from the source, no fact repeats across nodes, diamonds have at least 2 labeled exits with routing (never filler) labels, all nodes are reachable, and loop-back edges carry labels. Added certainty words fail; intensity words and unknown long words warn. On failure, near-verbatim quotes are first fixed locally without a model call; the writer gets one repair round for whatever remains.
 - With `--verify`, a verifier call judges meaning — whether each quote actually supports its claim — plus one fix round.
 - Defects surviving repair stay visible instead of blocking: the node turns red, its edges go red, its bullets get a `⚠` prefix. Output is written atomically with a header naming model, source, and date.
-- The same flow runs agentically: `skills/flowcheck-chart` builds charts conversationally and `skills/flowcheck-verify` audits them, through any AI assistant working in this repo.
+- Two drivers run that flow, never together on one chart. Orchestrator path: a program drives — run a command (or Send in the UI) and the script ingests, drafts via the model, gates, repairs, publishes; you watch. Agentic path: an assistant drives — ask any AI assistant working in this repo to chart a text and it performs `skills/flowcheck-chart` by hand (or audits via `skills/flowcheck-verify`) with the same cards, tools, and gates; the orchestrator program never starts.
 
 ## Models
 
@@ -72,13 +72,10 @@ Muse Spark via the Meta Model API.
 
 You are responsible for the license of third-party text you feed in. Charts derived from Wikipedia text must be shared CC BY-SA 4.0 with attribution.
 
-| file | URL | publisher | license | date fetched |
-|---|---|---|---|---|
-| input/calvin-cycle.url | https://en.wikipedia.org/w/index.php?oldid=1382160955 | Wikipedia contributors | CC BY-SA 4.0, text only, derived output is share-alike | 2026-10-27 |
+No inputs ship with the repo; everything under `input/` stays local-only. A known-good example is any pinned Wikipedia revision URL (the demo used the Calvin cycle snapshot).
 
 - Allowed: Wikipedia text (CC BY-SA 4.0), US government works, Illustrative Mathematics first edition (CC BY 4.0).
-- Not used: OpenStax (CC BY-NC-SA plus a Meta Muse-ingestion prohibition, checked 2026-10-27), CK-12, Utah OER (non-commercial).
-- Rule: check the live license page before adding a source, then add a row above.
+- Rule: check the live license page before using a source.
 - Third-party components and licences: THIRD_PARTY.md, ui/vendor/LICENSES.md
 
 ## Known limitations
