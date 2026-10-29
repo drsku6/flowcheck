@@ -25,16 +25,16 @@ Model everywhere below is Meta Muse (`muse-spark-1.3` via the Meta Model API).
 | `skills/flowcheck-chart/SKILL.md` | Agentic chart-building role for AI assistants | executed by Meta Muse |
 | `skills/flowcheck-verify/SKILL.md` | Agentic read-only audit role for AI assistants | executed by Meta Muse |
 | `server.py` | Web UI backend; `/api/chat` routes build vs revise; spawns pipeline | no (spawns pipeline) |
-| `ui/index.html`, `ui/app.js`, `ui/style.css` | Gallery, viewer, evidence drawer, footer | no |
+| `ui/index.html`, `ui/app.js`, `ui/style.css` | Gallery, viewer, evidence drawer, chat panel, footer | no |
 | `ui/vendor/mermaid.min.js` | Renders flowcharts in the browser (v10.9.1, MIT) | no |
 | `ui/vendor/svg-pan-zoom.min.js` | Pan/zoom interaction (v3.6.1, BSD-2-Clause) | no |
 | `ui/vendor/LICENSES.md` | Full license texts for the vendored files | no |
 | `input/` | Drop inputs here; everything inside stays local-only | no |
-| `output/calvin-cycle.mmd` (+ `_report.md`) | Demo chart + verifier report | product of Meta Muse calls |
+| `output/` | Charts + reports land here; everything inside stays local-only | product of Meta Muse calls |
 | `output/.gitkeep` | Keeps empty `output/` committable | no |
 | `requirements.txt` | Pinned Python deps (openai, dotenv, pdfplumber) | no |
 | `.env.example` | Template for `MODEL_API_KEY` | no |
-| `.gitignore` | Keeps secrets, scratch, and venv out of git; demo charts trackable | no |
+| `.gitignore` | Keeps secrets, scratch, inputs, outputs, venv out of git | no |
 | `LICENSE` | MIT licence of this repo | no |
 | `README.md` | Setup, run forms, pipeline, sources, limitations | no |
 | `THIRD_PARTY.md` | All third-party components + licences | no |
