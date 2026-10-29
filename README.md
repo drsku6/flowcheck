@@ -1,6 +1,14 @@
 # flowcheck
 
-Built for students, teachers, and visual learners. Turns an open-licensed source text into a Mermaid flowchart where every bullet is backed by a verbatim quote, with mechanical gates on every chart and an optional independent verifier. Content QA, not medical advice.
+Built for students, teachers, and visual learners. Students study from flowcharts, and AI can make them in seconds. It can't tell you which parts it invented. flowcheck turns a reading into a flowchart — branching where the source does — and checks every box against the source. Content QA, not medical advice.
+
+## Who it's for
+
+As AI-made visuals reach classrooms, learners and teachers need a way to see what the text actually supports. flowcheck builds that check into the chart.
+
+- Students and teachers who learn from flowcharts.
+- A teacher or student turns a reading (PDF, Markdown, text or Wikipedia link) into a chart where every box points back to a verbatim quote in the source.
+- Anything the checker cannot confirm turns red, so you know what to re-read.
 
 ## Setup
 
@@ -17,7 +25,11 @@ Add `MODEL_API_KEY` to `.env`. Never commit `.env`. Run the offline checks
 line (`cd ui && ...`) builds the web UI once; rebuild it after pulling UI
 changes. It needs Node.js (any recent LTS).
 
-## Two ways to run
+## Three ways to use
+
+1. **Command line (orchestrator).** A program drives the whole flow; you watch.
+2. **Web UI.** The same pipeline behind New MMD and Chat tabs (see below).
+3. **Agentic skill.** An AI assistant in this repo charts by hand (see Two drivers).
 
 Give any Wikipedia link:
 
@@ -29,6 +41,15 @@ Or drop a `.pdf`, `.md`, `.txt` or other file in `input/` and run:
 
 ```sh
 .venv/bin/python orchestrator.py input/<file>
+```
+
+Or fetch a page, check its size, and stage it as input (sources must stay under 50,000 characters):
+
+```sh
+.venv/bin/python ingest.py https://en.wikipedia.org/wiki/Lac_operon --id lac-operon
+wc -c workspace/lac-operon_source.md
+cp workspace/lac-operon_source.md input/lac-operon.md
+.venv/bin/python orchestrator.py input/lac-operon.md --draft
 ```
 
 Use `--all` to run everything in `input/`, and `--verify` for the slower independent meaning check (see below). Pass `--draft` to skip the writer repair round: one model call, roughly half the wait, with defects left flagged red. A name that already has `output/<name>.mmd` is skipped; pass `--force` to reprocess it, or delete that `.mmd` to run it again. (The web UI always re-runs: its Build button means build.)
@@ -100,15 +121,14 @@ You are responsible for the license of third-party text you feed in. Charts deri
 
 No inputs ship with the repo; everything under `input/` stays local-only. A known-good example is any pinned Wikipedia revision URL (the demo used the Calvin cycle snapshot).
 
-- Allowed: Wikipedia text (CC BY-SA 4.0), US government works, Illustrative Mathematics first edition (CC BY 4.0).
+- Allowed: Wikipedia text (CC BY-SA 4.0) and MedMCQA (Apache-2.0).
 - Rule: check the live license page before using a source.
 - Third-party components and licences: THIRD_PARTY.md
 
 ## Known limitations
 
 1. PDF tables without ruled lines get no row structure (their text still extracts as body lines).
-2. HTML from government sites keeps some banner text.
-3. The default path checks quotes exist verbatim; whether they support their claims is only judged with `--verify`.
+2. The default path checks quotes exist verbatim; whether they support their claims is only judged with `--verify`.
 4. Wikipedia ingests are revision-pinned snapshots; later article edits require a re-fetch.
 5. Flowcharts derived from Wikipedia text must be shared under CC BY-SA 4.0 with attribution.
 6. Wikipedia cleaning relies on standard class names, so some page text can survive.

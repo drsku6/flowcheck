@@ -23,6 +23,8 @@ fresh for it. Third-party pieces in use:
 ## Source data (never committed; see README Licences)
 
 - Wikipedia text: CC BY-SA 4.0, attribution required, derived charts share-alike.
-- PubMedQA: MIT — github.com/pubmedqa/pubmedqa. Biomedical questions from
-  PubMed abstracts; several demo charts derive from it.
-- US government works: public domain.
+- MedMCQA: Apache-2.0 — HuggingFace openlifescienceai/medmcqa. MCQ stems,
+  options, and explanations used as demo chart sources. Cite:
+  Ankit Pal, Logesh Kumar Umapathi, Malaikannan Sankarasubbu,
+  “MedMCQA: A Large-scale Multi-Subject Multi-Choice Dataset for Medical
+  domain Question Answering”, arXiv:2203.14371 (2022).
