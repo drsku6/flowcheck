@@ -4,7 +4,7 @@ For normative text: who must do what, by when, and what happens otherwise.
 Boards grammar: applicability first — route by whether the rule fires.
 
 - START names the rule system and its scope, 2–4 bullets.
-- Diamonds are applicability conditions and exceptions the source states, numbered broad to specific.
+- Diamonds are applicability conditions and exceptions the source states, numbered broad to specific. Branch if-applies and if-exempt paths in parallel.
 - Edge labels name the if-applies / if-exempt outcome.
 - Bullets carry actors, deadlines, amounts, filings, consequences. Every number exact.
 - Each fact once; the compliance summary closes the chart; TAKE states it in one line.

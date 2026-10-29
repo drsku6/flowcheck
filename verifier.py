@@ -18,7 +18,7 @@ def card_mode(client, sid, chart_path, source, call_n=1):
     raw = None
     for attempt in (1, 2):
         t0 = time.perf_counter()
-        resp = client.responses.create(model="muse-spark-1.3", input=first)
+        resp = client.responses.create(model="muse-spark-1.2", input=first)
         raw = resp.output_text
         print(f"[verifier] call {call_n} attempt {attempt} "
               f"{time.perf_counter() - t0:.1f}s", flush=True)

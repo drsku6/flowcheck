@@ -24,12 +24,14 @@ def main():
     if sj.exists():
         pinned = json.loads(sj.read_text(encoding="utf-8")).get("url_or_null") or raw_url
     if not pinned:
-        pinned = "(pasted text)"
+        pinned = None
     if lic is None:
-        lic = "Wikipedia contributors, CC BY-SA 4.0" if "wikipedia.org" in pinned else "See source"
-    block = ("%% REFS-BEGIN\n"
-             f'REFS["📚 Reference: <a href=\'{pinned}\'>{lic}</a>"]:::section\n'
-             "%% REFS-END")
+        lic = "Wikipedia contributors, CC BY-SA 4.0" if pinned and "wikipedia.org" in pinned else "See source"
+    if pinned:
+        ref_line = f'REFS["📚 Reference: <a href=\'{pinned}\'>{lic}</a>"]:::section'
+    else:
+        ref_line = 'REFS["📚 Reference: pasted text — See source"]:::section'
+    block = ("%% REFS-BEGIN\n" + ref_line + "\n%% REFS-END")
     if "%% REFS-BEGIN" in text:
         text = re.sub(r"%% REFS-BEGIN.*?%% REFS-END", block, text, flags=re.S)
     elif re.search(r"^REFS\[", text, flags=re.M):
@@ -39,7 +41,7 @@ def main():
     else:
         text = text.rstrip("\n") + "\n" + block + "\n"
     atomic_write(chart_p, text)
-    print(f"refs: {pinned}")
+    print(f"refs: {pinned or 'pasted text'}")
 
 
 def atomic_write(path, text):

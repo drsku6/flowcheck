@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from server import parse_report, slugify
+import server as server_mod
 
 
 class TestParseReport(unittest.TestCase):
@@ -34,6 +35,21 @@ class TestSlugify(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(slugify(""), "")
         self.assertEqual(slugify("___"), "")
+
+
+class TestClaimSlot(unittest.TestCase):
+    def test_same_id_serial(self):
+        t1, _ = server_mod._claim_slot("slot-a")
+        self.assertIsNotNone(t1)
+        t2, err = server_mod._claim_slot("slot-a")
+        self.assertIsNone(t2)
+        self.assertIn("slot-a", err)
+
+    def test_other_id_parallel(self):
+        t1, _ = server_mod._claim_slot("slot-b")
+        t2, _ = server_mod._claim_slot("slot-c")
+        self.assertIsNotNone(t1)
+        self.assertIsNotNone(t2)
 
 
 if __name__ == "__main__":

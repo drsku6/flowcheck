@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+:root {
+  --accent: #0891b2;
+  --accent-strong: #0e7490;
+  --canvas: #f1f5f9;
+  --panel: #ffffff;
+  --ink: #0f172a;
+  --muted: #475569;
+  --line: #e2e8f0;
+  --danger: #dc2626;
+  --danger-wash: #fef2f2;
+  --ok: #059669;
+  --ok-wash: #ecfdf5;
+}
+
+[data-theme="dark"] {
+  --canvas: #0b1220;
+  --panel: #111c30;
+  --ink: #e2e8f0;
+  --muted: #94a3b8;
+  --line: #243449;
+  --danger: #f87171;
+  --danger-wash: #2a1414;
+  --ok: #34d399;
+  --ok-wash: #0b2620;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0;
+}
+
+.canvas-bg-grid {
+  background-image: radial-gradient(circle, var(--line) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.canvas-bg-dots {
+  background-image: radial-gradient(circle, var(--muted) 1.2px, transparent 1.2px);
+  background-size: 26px 26px;
+}
+.canvas-bg-solid { background: var(--canvas); }
+
+.drawer-in { animation: slide-in 180ms ease-out; }
+@keyframes slide-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.spin {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: rot 0.8s linear infinite;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-in, .spin { animation: none; }
+}
+
+.mermaid svg { max-width: none; }

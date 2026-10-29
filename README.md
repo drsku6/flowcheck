@@ -28,7 +28,7 @@ Or drop a `.pdf`, `.md`, `.txt` or other file in `input/` and run:
 .venv/bin/python orchestrator.py input/<file>
 ```
 
-Use `--all` to run everything in `input/`, and `--verify` for the slower independent meaning check (see below). A name that already has `output/<name>.mmd` is skipped; pass `--force` to reprocess it, or delete that `.mmd` to run it again.
+Use `--all` to run everything in `input/`, and `--verify` for the slower independent meaning check (see below). Pass `--draft` to skip the writer repair round: one model call, roughly half the wait, with defects left flagged red. A name that already has `output/<name>.mmd` is skipped; pass `--force` to reprocess it, or delete that `.mmd` to run it again.
 
 ## Where the chart appears
 
@@ -66,7 +66,8 @@ Every model call goes to Muse Spark; the repo supplies the cards, the mechanical
 
 ## Models
 
-Muse Spark via the Meta Model API.
+Muse Spark via the Meta Model API. Every model call — drafts, repairs,
+revises, and `--verify` audits — runs on the fast `muse-spark-1.2`.
 
 ## Licences
 

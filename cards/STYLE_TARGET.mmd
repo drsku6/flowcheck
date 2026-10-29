@@ -12,8 +12,12 @@ flowchart LR
     OB["<b>B. Title</b><br/>• bullet"]:::altDx
     DISPO["<b>Management</b><br/>• bullet"]:::dispoNode
     TAKE["<b>Takeaway:</b> one line."]:::dispoNode
-    D1 -->|"short condition label"| D2
-    A --> B
+    START --> D1
+    D1 -->|"condition one"| OA
+    D1 -->|"condition two"| OB
+    OA --> DISPO
+    OB --> DISPO
+    DISPO --> TAKE
     %% CLAIM C1 | <verbatim sentence from source> | NODEID
     %% REFS-BEGIN
     REFS["📚 Reference: <a href='URL'>text</a>"]:::section

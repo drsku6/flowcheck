@@ -24,6 +24,10 @@ def strip_tags(s):
     return re.sub(r"<[^>]+>", " ", s or "")
 
 
+def strip_headings(t):
+    return re.sub(r"(?m)^\s*#{1,6}\s*.*$", " ", t or "")
+
+
 def stem(w):
     w = w.lower()
     for suf in ("ing", "es", "ed", "s"):
@@ -39,6 +43,7 @@ def main():
     chart = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
     source = Path(sys.argv[2]).read_text(encoding="utf-8")
     defects = []
+    warns = []
 
     nodes, edges, claims = {}, [], []
     for ln, line in enumerate(chart, 1):
@@ -102,6 +107,8 @@ def main():
     for nid, n in nodes.items():
         if n.get("diamond") and sum(1 for e in outs.get(nid, []) if e["label"].strip()) < 2:
             defects.append(f"diamond {nid}: needs >= 2 labeled exits")
+    if nodes and not any(n.get("diamond") for n in nodes.values()):
+        warns.append("linear chart: no fork (branch where the source states alternatives)")
     for e in edges:
         if e["from"] in order and e["to"] in order:
             if order.index(e["to"]) < order.index(e["from"]) and not e["label"].strip():
@@ -123,6 +130,7 @@ def main():
                 defects.append(f"node {nid}: unreachable")
 
     src_n = norm(source)
+    src_b = norm(strip_headings(source))
     for q, nid, ln in claims:  # claim form: complete sentence, no dangling anaphor
         s = norm(q)
         if not s:
@@ -133,8 +141,8 @@ def main():
             defects.append(f"CLAIM line {ln}: claim opens with anaphor: {s[:40]}")
         if s[-1] not in ".!?":
             defects.append(f"CLAIM line {ln}: claim does not end at sentence end")
-        i = src_n.find(s)
-        if i > 0 and not re.search(r"(?:[.!?:)]|\d)\s+$", src_n[:i]):
+        i = src_b.find(s)
+        if i > 0 and not re.search(r"(?:[.!?:)]|\d)\s+$", src_b[:i]):
             defects.append(f"CLAIM line {ln}: claim does not start at a sentence boundary")
 
     def label_nums(label):  # numbers in labels must come from the source
@@ -185,7 +193,6 @@ def main():
         elif COMPARATIVE_EDGE.search(lab):
             defects.append(f"edge line {e['line']}: edge judges instead of routing: {lab!r}")
 
-    warns = []
     low_labels = " ".join([strip_tags(n["label"]) for n in nodes.values()]
                           + [strip_tags(e["label"]) for e in edges]).lower()
     low_src = source.lower()

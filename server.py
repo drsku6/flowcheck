@@ -22,9 +22,11 @@ def slugify(name):
     """Same id rule as the orchestrator: lowercase, non-alphanumerics to '-'."""
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 CLAIM_RE = re.compile(r"%% CLAIM C\d+ \| (.*) \| (\w+)\s*$")
-STATIC = {"app.js": "text/javascript", "style.css": "text/css",
-          "vendor/mermaid.min.js": "text/javascript",
-          "vendor/svg-pan-zoom.min.js": "text/javascript"}
+DIST = ROOT / "ui" / "dist"
+MIME = {".js": "text/javascript", ".css": "text/css", ".html": "text/html",
+        ".svg": "image/svg+xml", ".json": "application/json",
+        ".png": "image/png", ".ico": "image/x-icon",
+        ".woff": "font/woff", ".woff2": "font/woff2", ".map": "application/json"}
 
 _lock = threading.Lock()
 _jobs = {}
@@ -58,32 +60,44 @@ def list_charts():
     return out
 
 
-def start_run(rid, text, url):
-    """Launch orchestrator as a subprocess. Returns (job_token, error)."""
+def _claim_slot(rid):
+    """Per-chart lock: same-id jobs stay serial, different ids run together."""
     global _job_n
     with _lock:
-        cur = _jobs.get("current")
+        cur = _jobs.get("active:" + rid)
         if cur and cur["state"] == "running":
-            return None, "a run is already in progress"
+            return None, f"a job for {rid} is already in progress"
         _job_n += 1
         token = f"job{_job_n}"
         job = {"id": rid, "state": "running", "log": deque(maxlen=300), "rc": None}
-        _jobs["current"] = job
+        _jobs["active:" + rid] = job
         _jobs[token] = job
+        return token, job
+
+
+def start_run(rid, text, url, draft=False):
+    """Launch orchestrator as a subprocess. Returns (job_token, error)."""
+    token, job = _claim_slot(rid)
+    if token is None:
+        return None, job
     if url is not None:
         (ROOT / "input" / f"{rid}.url").write_text(url + "\n", encoding="utf-8")
         cmd = [sys.executable, "orchestrator.py", f"input/{rid}.url"]
     else:
         cmd = [sys.executable, "orchestrator.py", "--text", text, "--id", rid]
+    # UI builds always re-run: the button means build, even over an existing chart.
+    cmd.append("--force")
+    if draft:
+        cmd.append("--draft")
 
     def run_bg():
         try:
-            pr = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=3600)
-            if pr.stdout.strip():
-                job["log"].append(pr.stdout.strip()[-2000:])
+            pr = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True, bufsize=1)
+            for line in pr.stdout:
+                job["log"].append(line.rstrip()[-500:])
+            pr.wait(timeout=3600)
             job["log"].append(f"[exit {pr.returncode}]")
-            if pr.stderr.strip():
-                job["log"].append(pr.stderr.strip()[-2000:])
             job["rc"] = pr.returncode
             job["state"] = "done" if pr.returncode == 0 else "error"
         except Exception as e:  # never leave a run stuck
@@ -124,16 +138,9 @@ def route_chat(rid, has_chart, has_material, message):
 
 def start_revise(rid, instruction):
     """Launch a revision job. Returns (job_token, error)."""
-    global _job_n
-    with _lock:
-        cur = _jobs.get("current")
-        if cur and cur["state"] == "running":
-            return None, "a run is already in progress"
-        _job_n += 1
-        token = f"job{_job_n}"
-        job = {"id": rid, "state": "running", "log": deque(maxlen=300), "rc": None}
-        _jobs["current"] = job
-        _jobs[token] = job
+    token, job = _claim_slot(rid)
+    if token is None:
+        return None, job
     threading.Thread(target=lambda: run_revise_bg(job, rid, instruction),
                      daemon=True).start()
     return token, None
@@ -163,7 +170,8 @@ def run_revise_bg(job, rid, instruction):
         scratch = ROOT / "workspace" / f"{rid}.revise.mmd"
         job["log"].append("asking Meta Muse to revise...")
         new_chart, refused = _model_revise(
-            unit, chart_path.read_text(encoding="utf-8"), instruction, utype)
+            unit, chart_path.read_text(encoding="utf-8"), instruction, utype,
+            progress=job["log"].append)
         scratch.write_text(new_chart, encoding="utf-8")
         subprocess.run([sys.executable, "tools/inject_refs.py", str(scratch),
                         "--id", rid], cwd=ROOT, check=True)
@@ -175,7 +183,8 @@ def run_revise_bg(job, rid, instruction):
             new_chart, refused2 = _model_revise(
                 unit, scratch.read_text(encoding="utf-8"),
                 instruction + "\nFix these validator defects, changing "
-                "nothing else:\n" + v.stdout, utype)
+                "nothing else:\n" + v.stdout, utype,
+                progress=job["log"].append)
             refused = refused + refused2
             scratch.write_text(new_chart, encoding="utf-8")
             subprocess.run([sys.executable, "tools/inject_refs.py", str(scratch),
@@ -188,7 +197,7 @@ def run_revise_bg(job, rid, instruction):
         lines = [f" - {i} -> validator defect -> fix per source" for i in defects]
         body = "\n".join(l for l in new_chart.splitlines()
                          if not l.startswith("%% generated"))
-        prov = (f"%% revised by muse-spark-1.3 via api.meta.ai | "
+        prov = (f"%% revised by muse-spark-1.2 via api.meta.ai | "
                 f"{datetime.date.today().isoformat()}\n")
         final = prov + (_mark_red(body, lines) if defects else body + "\n")
         with tempfile.NamedTemporaryFile("w", delete=False, dir=ROOT / "output",
@@ -221,26 +230,37 @@ def run_revise_bg(job, rid, instruction):
 class H(BaseHTTPRequestHandler):
     server_version = "flowcheck-ui/0.1"
 
-    def _send(self, code, body, ctype="application/json"):
+    def _send(self, code, body, ctype="application/json", nocache=False):
         raw = body if isinstance(body, bytes) else body.encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(raw)))
+        if nocache:
+            self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(raw)
 
     def _json(self, code, obj):
         self._send(code, json.dumps(obj))
 
+    def _serve_dist(self, path):
+        target = (DIST / path.lstrip("/")).resolve()
+        if not str(target).startswith(str(DIST.resolve()) + "/") and target != DIST.resolve():
+            return False
+        if target.is_file():
+            nocache = target.suffix == ".html"
+            self._send(200, target.read_bytes(), MIME.get(target.suffix, "application/octet-stream"),
+                       nocache=nocache)
+            return True
+        index = DIST / "index.html"
+        if index.is_file():
+            self._send(200, index.read_bytes(), "text/html", nocache=True)
+            return True
+        return False
+
     def do_GET(self):
         u = urlparse(self.path)
-        if u.path == "/":
-            self._send(200, (ROOT / "ui" / "index.html").read_bytes(), "text/html")
-        elif u.path in ("/app.js", "/style.css", "/vendor/mermaid.min.js",
-                        "/vendor/svg-pan-zoom.min.js"):
-            rel = u.path.lstrip("/")
-            self._send(200, (ROOT / "ui" / rel).read_bytes(), STATIC[rel])
-        elif u.path == "/api/charts":
+        if u.path == "/api/charts":
             self._json(200, list_charts())
         elif u.path == "/api/chart":
             rid = parse_qs(u.query).get("id", [""])[0]
@@ -262,6 +282,9 @@ class H(BaseHTTPRequestHandler):
                 self._json(404, {"error": "no such job"})
                 return
             self._json(200, {"state": job["state"], "log_tail": "\n".join(job["log"])})
+        elif not u.path.startswith("/api/"):
+            if not self._serve_dist(u.path if u.path != "/" else "/index.html"):
+                self._json(404, {"error": "ui not built: run `npm run build` in ui/"})
         else:
             self._json(404, {"error": "not found"})
 
@@ -309,7 +332,8 @@ class H(BaseHTTPRequestHandler):
                 if url and not url.startswith(("http://", "https://")):
                     self._json(400, {"error": "url must be http(s)"})
                     return
-                token, err = start_run(rid, text, url or None)
+                token, err = start_run(rid, text, url or None,
+                                       draft=d.get("mode") == "draft")
             else:
                 err = revise_error(rid, message)
                 if err:
@@ -324,7 +348,8 @@ class H(BaseHTTPRequestHandler):
             if url and not url.startswith(("http://", "https://")):
                 self._json(400, {"error": "url must be http(s)"})
                 return
-            token, err = start_run(rid, text, url or None)
+            token, err = start_run(rid, text, url or None,
+                                   draft=d.get("mode") == "draft")
         if err:
             self._json(409, {"error": err})
             return
@@ -335,9 +360,12 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    srv = ThreadingHTTPServer(("127.0.0.1", port), H)
-    print(f"flowcheck ui: http://127.0.0.1:{port}", flush=True)
+    import os
+
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 8000))
+    host = os.environ.get("HOST", "127.0.0.1")
+    srv = ThreadingHTTPServer((host, port), H)
+    print(f"flowcheck ui: http://{host}:{port}", flush=True)
     srv.serve_forever()
 
 

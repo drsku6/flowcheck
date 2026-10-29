@@ -37,7 +37,27 @@ class TestValidator(unittest.TestCase):
     def test_pass(self):
         r = run_chart(GOOD)
         self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertEqual(r.stdout.strip(), "PASS")
+        self.assertTrue(r.stdout.strip().endswith("PASS"), r.stdout)
+
+    def test_linear_warn_not_fail(self):
+        r = run_chart(GOOD)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("linear chart: no fork", r.stdout)
+
+    def test_fork_no_linear_warn(self):
+        chart = ("flowchart LR\n"
+                 "A([\"<b>Boil</b><br/>• Boil water\"]):::altDx\n"
+                 "D{\"Hot or iced\"}:::decisionNode\n"
+                 "B([\"<b>Hot tea</b><br/>• Pour hot\"]):::altDx\n"
+                 "C([\"<b>Iced tea</b><br/>• Pour iced\"]):::altDx\n"
+                 "A --> D\n"
+                 "D -->|\"Hot\"| B\n"
+                 "D -->|\"Iced\"| C\n"
+                 "%% CLAIM C1 | Boil water in a kettle. | A\n"
+                 "%% CLAIM C2 | Pour the water over tea leaves. | B\n"
+                 "%% CLAIM C3 | Steep for three minutes before serving. | C\n")
+        r = run_chart(chart)
+        self.assertNotIn("linear chart", r.stdout)
 
     def test_nonverbatim_claim(self):
         bad = GOOD.replace("Steep for three minutes before serving.",
@@ -79,6 +99,20 @@ class TestValidator(unittest.TestCase):
         r = run_chart(bad)
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("node A: label contains '/'", r.stdout)
+
+    def test_heading_boundary_numeric_claim(self):
+        source = ("# Title\n\n## Background\n\n"
+                  "Assessment of visual acuity depends on the optotypes used for measurement.\n"
+                  "100 patients were tested.\n")
+        chart = ("flowchart LR\n"
+                 "A([\"<b>Back</b><br/>• Assessment test\"]):::altDx\n"
+                 "B([\"<b>Group</b><br/>• Patient group\"]):::altDx\n"
+                 "A --> B\n"
+                 "%% CLAIM C1 | Assessment of visual acuity depends on the optotypes used for measurement. | A\n"
+                 "%% CLAIM C2 | 100 patients were tested. | B\n")
+        r = run_chart(chart, source=source)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertTrue(r.stdout.strip().endswith("PASS"), r.stdout)
 
 
 if __name__ == "__main__":

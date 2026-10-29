@@ -1,6 +1,6 @@
 # What each file does, and where Meta Muse is used
 
-Model everywhere below is Meta Muse (`muse-spark-1.3` via the Meta Model API).
+Model everywhere below is Meta Muse (`muse-spark-1.2` via the Meta Model API).
 "Meta Muse: no" means deterministic code. Cards are knowledge Meta Muse reads, not calls.
 
 | File | Does | Meta Muse |

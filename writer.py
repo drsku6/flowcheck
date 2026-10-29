@@ -10,16 +10,44 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 TYPES = ("procedure", "mechanism", "classification", "evidence", "rules", "general")
+MODEL = "muse-spark-1.2"
+DRAFT_MODEL = "muse-spark-1.2"
 _calls, _lock = 0, threading.Lock()
 
 
-def call_muse(prompt):
+def call_muse(prompt, progress=None, model=MODEL):
     load_dotenv()
     api_key = os.getenv("MODEL_API_KEY")
     if not api_key:
         sys.exit("error: MODEL_API_KEY missing in .env")
     client = OpenAI(base_url="https://api.meta.ai/v1", api_key=api_key)
-    return client.responses.create(model="muse-spark-1.3", input=prompt).output_text
+    try:
+        return _call_streaming(client, prompt, progress, model)
+    except Exception as e:  # streaming is progress only; never fail the call
+        print(f"[writer] stream unavailable ({e}); single call", flush=True)
+        return client.responses.create(model=model, input=prompt).output_text
+
+
+def _call_streaming(client, prompt, progress, model):
+    parts, nchars, last_note = [], [0], [0.0]
+    with client.responses.create(model=model, input=prompt,
+                                 stream=True) as stream:
+        for ev in stream:
+            d = getattr(ev, "delta", "")
+            if getattr(ev, "type", "") == "response.output_text.delta" and d:
+                parts.append(d)
+                nchars[0] += len(d)
+                now = time.perf_counter()
+                if now - last_note[0] >= 10:
+                    last_note[0] = now
+                    msg = f"[writer] … {nchars[0] // 1000}k chars so far"
+                    print(msg, flush=True)
+                    if progress:
+                        progress(msg)
+    text = "".join(parts)
+    if not text.strip():
+        raise RuntimeError("empty stream")
+    return text
 
 ROOT = Path(__file__).resolve().parent
 
@@ -47,14 +75,15 @@ def extract_chart(out):
     return (m.group(1) if m else out).strip() + "\n"
 
 
-def write_chart(unit_text, utype=None, extra=""):
-    """One model call per chart. Returns (type, chart). utype None = classify in-call."""
+def write_chart(unit_text, utype=None, extra="", progress=None, model=DRAFT_MODEL):
+    """One model call per chart. Returns (type, chart). utype None = classify in-call.
+    Drafts default to the fast model; repairs pass model=MODEL explicitly."""
     global _calls
     prompt = base_prompt(utype)
     if extra:
         prompt += extra + "\n"
     t0 = time.perf_counter()
-    out = call_muse(prompt + "Unit text:\n" + unit_text)
+    out = call_muse(prompt + "Unit text:\n" + unit_text, progress, model)
     dt = time.perf_counter() - t0
     with _lock:
         _calls += 1
@@ -94,7 +123,7 @@ def split_refusals(out):
     return extract_chart(body), refused
 
 
-def revise_chart(unit_text, chart, instruction, utype=None):
+def revise_chart(unit_text, chart, instruction, utype=None, progress=None):
     """One model call revising a chart. Returns (chart, refusals)."""
     global _calls
     prompt = (base_prompt(utype if utype in TYPES else "general")
@@ -102,7 +131,7 @@ def revise_chart(unit_text, chart, instruction, utype=None):
               + REVISE_TMPL.replace("<<<REQ>>>", instruction)
                            .replace("<<<CHART>>>", chart))
     t0 = time.perf_counter()
-    out = call_muse(prompt)
+    out = call_muse(prompt, progress)
     dt = time.perf_counter() - t0
     with _lock:
         _calls += 1
