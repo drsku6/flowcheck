@@ -23,8 +23,8 @@ class StageFailed(RuntimeError):
         super().__init__(f"error: {stage} failed with exit {code}")
 
 
-def stage(name, cmd):
-    print(f"== {name}", flush=True)
+def stage(name, cmd, note=""):
+    print(f"== {name}" + (f": {note}" if note else ""), flush=True)
     r = subprocess.run(cmd)
     if r.returncode != 0:
         raise StageFailed(name, r.returncode)
@@ -79,6 +79,7 @@ HARD_LIMIT = 50000
 
 
 def validate_once(py, scratch, md_path, times):
+    print("== validate: plain code checks every quote", flush=True)
     t0 = time.perf_counter()
     v = subprocess.run([py, "tools/validate_mmd.py", scratch, md_path],
                        capture_output=True, text=True)
@@ -157,7 +158,7 @@ def run_cards(source, sid, stem, input_stem, verify, times, skip_ingest=False,
     py = sys.executable
     if not skip_ingest:
         t0 = time.perf_counter()
-        stage("ingest", [py, "ingest.py", source, "--id", sid])
+        stage("ingest", [py, "ingest.py", source, "--id", sid], "fetch the page")
         times["ingest"] = time.perf_counter() - t0
     md_path = f"workspace/{sid}_source.md"
     src_text = Path(md_path).read_text(encoding="utf-8")
@@ -169,6 +170,7 @@ def run_cards(source, sid, stem, input_stem, verify, times, skip_ingest=False,
     unit_texts, utypes = [norm(src_text)], [None]  # one unit; writer classifies in-call
     multi = False
 
+    print("== writer: Muse Spark 1.2 writes the chart", flush=True)
     t0 = time.perf_counter()
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
         typed = list(ex.map(lambda ut: write_chart(*ut), zip(unit_texts, utypes)))
@@ -183,7 +185,8 @@ def run_cards(source, sid, stem, input_stem, verify, times, skip_ingest=False,
         tag = f"_{n}" if multi else ""
         scratch, vid = f"workspace/{sid}{tag}.mmd", f"{sid}{tag}"
         atomic_write(scratch, chart)
-        stage("inject_refs", [py, "tools/inject_refs.py", scratch, "--id", input_stem])
+        stage("inject_refs", [py, "tools/inject_refs.py", scratch, "--id", input_stem],
+              "attach source quotes")
         ok, out = validate_once(py, scratch, md_path, times)
         if not ok:  # deterministic fix first; writer repair only for the rest
             n_fixed = local_repair(scratch, md_path)
@@ -197,7 +200,8 @@ def run_cards(source, sid, stem, input_stem, verify, times, skip_ingest=False,
                                        "Fix every defect and return the full chart:\n" + out,
                                        model=MODEL)
             atomic_write(scratch, chart)
-            stage("inject_refs", [py, "tools/inject_refs.py", scratch, "--id", input_stem])
+            stage("inject_refs", [py, "tools/inject_refs.py", scratch, "--id", input_stem],
+              "attach source quotes")
             ok, out = validate_once(py, scratch, md_path, times)
         if multi:
             shutil.copy(md_path, f"workspace/{vid}_source.md")

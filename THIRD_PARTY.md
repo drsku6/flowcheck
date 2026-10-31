@@ -27,4 +27,4 @@ fresh for it. Third-party pieces in use:
   options, and explanations used as demo chart sources. Cite:
   Ankit Pal, Logesh Kumar Umapathi, Malaikannan Sankarasubbu,
   “MedMCQA: A Large-scale Multi-Subject Multi-Choice Dataset for Medical
-  domain Question Answering”, arXiv:2203.14371 (2022).
+  domain Question Answering”, PMLR 174:248-260 (2022), arXiv:2203.14371.

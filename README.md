@@ -1,13 +1,13 @@
 # flowcheck
 
-Built for students, teachers, and visual learners. Students study from flowcharts, and AI can make them in seconds. It can't tell you which parts it invented. flowcheck turns a reading into a flowchart — branching where the source does — and checks every box against the source. Content QA, not medical advice.
+Built for students, teachers, and visual learners. Students study from flowcharts, and AI can make them in seconds. It can't tell you which parts it invented. flowcheck turns a reading into a flowchart — branching where the source does — and checks every bullet against the source. Content QA, not medical advice.
 
 ## Who it's for
 
 As AI-made visuals reach classrooms, learners and teachers need a way to see what the text actually supports. flowcheck builds that check into the chart.
 
 - Students and teachers who learn from flowcharts.
-- A teacher or student turns a reading (PDF, Markdown, text or Wikipedia link) into a chart where every box points back to a verbatim quote in the source.
+- A teacher or student turns a reading (PDF, Markdown, text or Wikipedia link) into a chart where every bullet points back to a verbatim quote in the source.
 - Anything the checker cannot confirm turns red, so you know what to re-read.
 
 ## Setup
@@ -47,7 +47,7 @@ Or fetch a page, check its size, and stage it as input (sources must stay under 
 
 ```sh
 .venv/bin/python ingest.py https://en.wikipedia.org/wiki/Lac_operon --id lac-operon
-wc -c workspace/lac-operon_source.md
+wc -m workspace/lac-operon_source.md
 cp workspace/lac-operon_source.md input/lac-operon.md
 .venv/bin/python orchestrator.py input/lac-operon.md --draft
 ```
@@ -119,9 +119,11 @@ revises, and `--verify` audits — runs on the fast `muse-spark-1.2`.
 
 You are responsible for the license of third-party text you feed in. Charts derived from Wikipedia text must be shared CC BY-SA 4.0 with attribution.
 
-No inputs ship with the repo; everything under `input/` stays local-only. A known-good example is any pinned Wikipedia revision URL (the demo used the Calvin cycle snapshot).
+No inputs ship with the repo; everything under `input/` stays local-only. A known-good example is any pinned Wikipedia revision URL (the demo used Lac operon, Apoptosis and one MedMCQA exam question).
 
 - Allowed: Wikipedia text (CC BY-SA 4.0) and MedMCQA (Apache-2.0).
+- MedMCQA citation: Pal, Umapathi & Sankarasubbu (2022), "MedMCQA: A Large-scale Multi-Subject Multi-Choice Dataset for Medical domain Question Answering", PMLR 174:248-260 (CHIL 2022).
+- MedMCQA is exam practice material. flowcheck checks charts against documents, not patients.
 - Rule: check the live license page before using a source.
 - Third-party components and licences: THIRD_PARTY.md
 
@@ -129,8 +131,8 @@ No inputs ship with the repo; everything under `input/` stays local-only. A know
 
 1. PDF tables without ruled lines get no row structure (their text still extracts as body lines).
 2. The default path checks quotes exist verbatim; whether they support their claims is only judged with `--verify`.
-4. Wikipedia ingests are revision-pinned snapshots; later article edits require a re-fetch.
-5. Flowcharts derived from Wikipedia text must be shared under CC BY-SA 4.0 with attribution.
-6. Wikipedia cleaning relies on standard class names, so some page text can survive.
-7. Sub/superscript spacing (e.g. "CO 2") can fail the exact-match quote check.
-8. Model output is nondeterministic: re-runs of the same input can differ in wording, flags, and chart shape.
+3. Wikipedia ingests are revision-pinned snapshots; later article edits require a re-fetch.
+4. Flowcharts derived from Wikipedia text must be shared under CC BY-SA 4.0 with attribution.
+5. Wikipedia cleaning relies on standard class names, so some page text can survive.
+6. Sub/superscript spacing (e.g. "CO 2") can fail the exact-match quote check.
+7. Model output is nondeterministic: re-runs of the same input can differ in wording, flags, and chart shape.

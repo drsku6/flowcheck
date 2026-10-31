@@ -352,7 +352,6 @@ def main():
     atomic_write(out / f"{args.source_id}_source.json", json.dumps(prov, indent=2))
 
     print(f"pages: {pages if pages else 'n/a'}, chars: {len(text)}")
-    print("Check the source's license before using it in a demo.")
 
 
 def atomic_write(path, text):
